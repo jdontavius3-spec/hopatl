@@ -4,10 +4,11 @@
  * while bypassing all /api/* dynamic state and telemetry endpoints.
  */
 
-const CACHE_NAME = 'wait-return-shell-v1';
+const CACHE_NAME = 'wait-return-shell-v2';
 
 const STATIC_ASSETS = [
   '/',
+  '/driver',
   '/index.html',
   '/css/styles.css',
   '/manifest.json',
@@ -17,6 +18,19 @@ const STATIC_ASSETS = [
   '/js/data.js',
   '/js/telemetry.js',
   '/js/cashapp.js',
+  '/js/components/Header.js',
+  '/js/components/Landing.js',
+  '/js/components/BookingForm.js',
+  '/js/components/FareReview.js',
+  '/js/components/TripStatus.js',
+  '/js/components/WaitingStop.js',
+  '/js/components/TripComplete.js',
+  '/js/components/DriverView.js',
+  '/js/components/AboutModal.js',
+  '/js/components/CashAppModal.js',
+  '/js/components/ZelleModal.js',
+  '/js/components/InstallModal.js',
+  '/js/components/LiveMap.js',
   '/icons/icon.svg',
   '/icons/icon-192.png',
   '/icons/icon-512.png',

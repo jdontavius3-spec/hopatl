@@ -43,6 +43,7 @@ function renderApp() {
   if (!root) return;
 
   const state = store.getState();
+  const isDriver = state.activeMode === 'driver';
 
   // 1. Render Header
   const headerHtml = renderHeader(state, {
@@ -607,8 +608,8 @@ window.addEventListener('beforeinstallprompt', (e) => {
   deferredInstallPrompt = e;
 });
 
-// Initial Render on DOMContentLoaded & start telemetry streaming
-window.addEventListener('DOMContentLoaded', () => {
+// Robust boot sequence supporting both DOMContentLoaded and already-parsed DOM (PWAs/Modules)
+function boot() {
   telemetry.startSimulatedGPS();
   renderApp();
 
@@ -618,4 +619,11 @@ window.addEventListener('DOMContentLoaded', () => {
       console.warn('Service worker registration:', err);
     });
   }
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', boot);
+} else {
+  // DOM is already parsed; boot immediately so screen is never blank
+  boot();
+}
