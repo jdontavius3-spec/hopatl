@@ -135,9 +135,9 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // 5. Driver direct shortcut: /driver -> serves index.html with driver mode flag
-  if (pathname === '/driver') {
-    const indexPath = path.join(PUBLIC_DIR, 'index.html');
+  // 5. Driver direct shortcut: /driver -> serves driver/index.html
+  if (pathname === '/driver' || pathname === '/driver/') {
+    const indexPath = path.join(PUBLIC_DIR, 'driver', 'index.html');
     fs.readFile(indexPath, (err, data) => {
       if (err) {
         res.writeHead(500, { 'Content-Type': 'text/plain' });

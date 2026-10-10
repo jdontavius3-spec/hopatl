@@ -75,10 +75,11 @@ export function renderHeader(state, { onModeChange, onAboutClick, onLogoClick })
       <!-- HEADER ACTION / MODE DISPLAY -->
       ${isDriver ? `
         <div style="display:flex;align-items:center;gap:8px;">
-          <span style="background:rgba(56,189,248,0.15);color:#38bdf8;padding:4px 10px;border-radius:12px;font-size:10.5px;font-weight:800;border:1px solid rgba(56,189,248,0.35);letter-spacing:0.04em;">
-            PILOT CONSOLE
-          </span>
-          <a href="/" style="background:#1e293b;border:1px solid #334155;color:#94a3b8;padding:4px 8px;border-radius:8px;font-size:10.5px;font-weight:700;text-decoration:none;">
+          <button id="btnInstallApp" style="background:#0c1c2e;border:1px solid rgba(56,189,248,0.35);color:#38bdf8;padding:5px 10px;border-radius:12px;font-size:11px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:4px;box-shadow:0 0 10px rgba(56,189,248,0.2);">
+            <span>📲</span>
+            <span>Save Pilot</span>
+          </button>
+          <a href="/" style="background:#1e293b;border:1px solid #334155;color:#94a3b8;padding:5px 8px;border-radius:8px;font-size:10.5px;font-weight:700;text-decoration:none;">
             Rider View ↗
           </a>
         </div>

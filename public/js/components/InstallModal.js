@@ -18,8 +18,8 @@ export function renderInstallModal(isOpen, { onClose }) {
               <img src="/icons/icon.svg" alt="TRICKHOPPER Icon" style="width:28px;height:28px;" />
             </div>
             <div>
-              <div class="modal-title" style="font-size:16px;">Save TRICKHOPPER 🐰</div>
-              <div style="font-size:11.5px;color:var(--text-tertiary);">Standalone Nightlife Bunny App</div>
+              <div class="modal-title" style="font-size:16px;">${(typeof window !== 'undefined' && window.location.pathname.startsWith('/driver')) ? 'Save Pilot Console 🐰' : 'Save TRICKHOPPER 🐰'}</div>
+              <div style="font-size:11.5px;color:var(--text-tertiary);">${(typeof window !== 'undefined' && window.location.pathname.startsWith('/driver')) ? 'Dedicated In-Car Camry Console' : 'Standalone Nightlife Bunny App'}</div>
             </div>
           </div>
           <button class="modal-close-btn" id="btnCloseInstallModal">&times;</button>
@@ -27,7 +27,7 @@ export function renderInstallModal(isOpen, { onClose }) {
 
         <div style="font-size:13px;color:var(--text-secondary);line-height:1.5;display:flex;flex-direction:column;gap:14px;">
           <p style="margin:0;">
-            TRICKHOPPER is a <strong>Progressive Web App (PWA)</strong>. You can install it directly to your phone's home screen without downloading from the App Store.
+            ${(typeof window !== 'undefined' && window.location.pathname.startsWith('/driver')) ? 'Install the Pilot Console directly to your home screen for rapid 1-tap access while driving, with automatic Screen WakeLock and live GPS telemetry.' : 'TRICKHOPPER is a <strong>Progressive Web App (PWA)</strong>. You can install it directly to your phone\'s home screen without downloading from the App Store.'}
           </p>
 
           <!-- iOS SAFARI INSTRUCTIONS -->
