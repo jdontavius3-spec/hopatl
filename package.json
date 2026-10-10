@@ -1,0 +1,22 @@
+{
+  "name": "wait-and-return-prototype",
+  "version": "1.0.0",
+  "description": "Mobile-first prototype for wait-and-return short ride bookings with upfront pricing",
+  "main": "server.mjs",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node --watch server.mjs",
+    "test": "node --test test/pricing-state.test.mjs",
+    "check": "node --test test/pricing-state.test.mjs"
+  },
+  "keywords": [
+    "rideshare",
+    "wait-and-return",
+    "prototype",
+    "mobile-first"
+  ],
+  "author": "Antigravity Prototype Team",
+  "license": "UNLICENSED",
+  "private": true
+}
