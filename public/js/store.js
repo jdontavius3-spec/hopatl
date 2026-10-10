@@ -98,15 +98,17 @@ class Store {
     this.sse = null;
     this.state = this._loadState();
 
-    // Check URL parameters for explicit mode on mobile / multi-browser (e.g. ?mode=driver or /driver)
+    // URL is strictly authoritative for activeMode: riders always get rider mode, only /driver gets driver mode
     if (typeof window !== 'undefined' && window.location) {
-      const params = new URLSearchParams(window.location.search);
-      const modeParam = params.get('mode');
-      if (modeParam === 'driver' || window.location.pathname === '/driver') {
-        this.state.activeMode = 'driver';
-      } else if (modeParam === 'rider') {
-        this.state.activeMode = 'rider';
-      }
+      const isExplicitDriver = window.location.pathname.startsWith('/driver') || 
+                               new URLSearchParams(window.location.search).get('mode') === 'driver';
+      this.state.activeMode = isExplicitDriver ? 'driver' : 'rider';
+
+      window.addEventListener('popstate', () => {
+        const isDriver = window.location.pathname.startsWith('/driver') || 
+                         new URLSearchParams(window.location.search).get('mode') === 'driver';
+        this.setState({ activeMode: isDriver ? 'driver' : 'rider' });
+      });
     }
 
     // Connect to Server-Sent Events (SSE) for multi-device sync
@@ -220,6 +222,12 @@ class Store {
           overtimeMinutes: parsed.overtimeMinutes || 0,
           riders: parsed.riders || 1,
         });
+
+        // Always enforce URL authority for activeMode
+        const isExplicitDriver = typeof window !== 'undefined' && window.location && 
+          (window.location.pathname.startsWith('/driver') || new URLSearchParams(window.location.search).get('mode') === 'driver');
+        parsed.activeMode = isExplicitDriver ? 'driver' : 'rider';
+
         return { ...DEFAULT_STATE, ...parsed };
       }
     } catch (e) {
@@ -266,6 +274,13 @@ class Store {
 
   // Set top-level mode (Rider vs Driver demo)
   setMode(mode) {
+    if (typeof window !== 'undefined' && window.history) {
+      if (mode === 'driver') {
+        window.history.pushState({}, '', '/driver');
+      } else {
+        window.history.pushState({}, '', '/');
+      }
+    }
     this.setState({ activeMode: mode });
   }
 

@@ -180,11 +180,19 @@ function renderApp() {
       <footer class="footer-nav">
         <div class="footer-links">
           <span class="footer-link" id="footerAboutLink">How TRICKHOPPER Works</span>
-          <span class="footer-link" id="footerResetLink">Reset Demo</span>
-          <span class="footer-link" id="footerDriverLink">Pilot Console</span>
+          ${isDriver ? `
+            <span class="footer-link" id="footerResetLink">Reset Demo</span>
+            <a class="footer-link" href="/" id="footerRiderLink">← Exit to Rider View</a>
+          ` : `
+            <a class="footer-link" href="sms:19432452611?&body=Hey%20Dohntay%2C%20need%20a%20TRICKHOPPER%20ride!">Direct Pilot SMS</a>
+          `}
         </div>
         <div class="footer-disclaimer">
-          🐰 TRICKHOPPER · Nightlife Bunny Rides · Pilot: Dohntay · Zelle, Cash App & Cash in vehicle.
+          ${isDriver ? `
+            TRICKHOPPER PILOT TELEMETRY ENGINE · Dedicated Camry Console
+          ` : `
+            🐰 TRICKHOPPER · Atlanta Nightlife Roundtrip Rideshare · Pilot: Dohntay · Zelle, Cash App & Cash.
+          `}
         </div>
       </footer>
     </div>
@@ -208,8 +216,10 @@ function bindEvents() {
   // Logo Click
   const btnLogo = document.getElementById('btnLogo');
   if (btnLogo) btnLogo.onclick = () => {
-    store.setMode('rider');
-    store.setState({ tripState: TRIP_STATES.IDLE });
+    const isDriver = store.getState().activeMode === 'driver';
+    if (!isDriver) {
+      store.setState({ tripState: TRIP_STATES.IDLE });
+    }
   };
 
   // About Modal Triggers
@@ -452,11 +462,6 @@ function bindEvents() {
     };
   }
 
-  const btnPeekDriver = document.getElementById('btnPeekDriver');
-  if (btnPeekDriver) {
-    btnPeekDriver.onclick = () => store.setMode('driver');
-  }
-
   // Waiting Stop: Ready to return
   const btnReadyToReturn = document.getElementById('btnReadyToReturn');
   if (btnReadyToReturn) {
@@ -473,11 +478,6 @@ function bindEvents() {
   const btnStartReturnTrip = document.getElementById('btnStartReturnTrip');
   if (btnStartReturnTrip) {
     btnStartReturnTrip.onclick = () => store.advanceTripState();
-  }
-
-  const btnSwitchToDriverDemo = document.getElementById('btnSwitchToDriverDemo');
-  if (btnSwitchToDriverDemo) {
-    btnSwitchToDriverDemo.onclick = () => store.setMode('driver');
   }
 
   // In Transit Return: Arrive Home
@@ -584,18 +584,15 @@ function bindEvents() {
 
   const btnBackToRider = document.getElementById('btnBackToRider');
   if (btnBackToRider) {
-    btnBackToRider.onclick = () => store.setMode('rider');
+    btnBackToRider.onclick = () => {
+      window.location.href = '/';
+    };
   }
 
   // Footer Actions
   const footerReset = document.getElementById('footerResetLink');
   if (footerReset) {
     footerReset.onclick = () => store.resetTrip();
-  }
-
-  const footerDriver = document.getElementById('footerDriverLink');
-  if (footerDriver) {
-    footerDriver.onclick = () => store.setMode('driver');
   }
 }
 

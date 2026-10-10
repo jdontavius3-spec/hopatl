@@ -62,12 +62,6 @@ export function renderHeader(state, { onModeChange, onAboutClick, onLogoClick })
   }
 
   return `
-    <!-- PROTOTYPE DEMONSTRATION NOTICE -->
-    <div class="proto-banner">
-      <span class="proto-banner-badge">TRICKHOPPER VIP</span>
-      <span>Atlanta Nightlife Bunny Prototype · Pilot: Dohntay (ATL-PILOT) · Zelle · Cash App · Cash</span>
-    </div>
-
     <!-- MAIN HEADER -->
     <header class="header-bar">
       <div class="brand-block" id="btnLogo">
@@ -78,15 +72,27 @@ export function renderHeader(state, { onModeChange, onAboutClick, onLogoClick })
         </div>
       </div>
 
-      <!-- MODE SWITCHER -->
-      <div class="mode-toggle">
-        <button class="mode-btn ${!isDriver ? 'active' : ''}" id="btnModeRider">
-          Rider
-        </button>
-        <button class="mode-btn ${isDriver ? 'active-driver' : ''}" id="btnModeDriver">
-          Pilot Console
-        </button>
-      </div>
+      <!-- HEADER ACTION / MODE DISPLAY -->
+      ${isDriver ? `
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="background:rgba(56,189,248,0.15);color:#38bdf8;padding:4px 10px;border-radius:12px;font-size:10.5px;font-weight:800;border:1px solid rgba(56,189,248,0.35);letter-spacing:0.04em;">
+            PILOT CONSOLE
+          </span>
+          <a href="/" style="background:#1e293b;border:1px solid #334155;color:#94a3b8;padding:4px 8px;border-radius:8px;font-size:10.5px;font-weight:700;text-decoration:none;">
+            Rider View ↗
+          </a>
+        </div>
+      ` : `
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button id="btnInstallApp" style="background:#130a24;border:1px solid rgba(255,42,141,0.35);color:#ff70ba;padding:5px 10px;border-radius:12px;font-size:11px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:4px;box-shadow:0 0 10px rgba(255,42,141,0.2);">
+            <span>📲</span>
+            <span>Save App</span>
+          </button>
+          <button id="btnAbout" style="background:transparent;border:none;color:var(--text-secondary);font-size:11.5px;font-weight:700;cursor:pointer;padding:4px 4px;">
+            How it works ↗
+          </button>
+        </div>
+      `}
     </header>
 
     <!-- SYNCHRONIZED STATE PILL STRIP -->
@@ -98,14 +104,8 @@ export function renderHeader(state, { onModeChange, onAboutClick, onLogoClick })
           ${badgeText}
         </span>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <button id="btnInstallApp" style="background:#0f172a;border:1px solid #334155;color:#38bdf8;padding:3px 8px;border-radius:12px;font-size:10px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:3px;">
-          <span>📲</span>
-          <span>Save App</span>
-        </button>
-        <button id="btnAbout" style="background:transparent;border:none;color:var(--primary);font-size:11.5px;font-weight:700;cursor:pointer;">
-          How it works ↗
-        </button>
+      <div style="font-size:11px;color:var(--text-tertiary);">
+        ${isDriver ? 'Camry Pilot Node' : 'Atlanta Nightlife VIP'}
       </div>
     </div>
 

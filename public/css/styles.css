@@ -60,21 +60,36 @@ html, body {
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
   width: 100%;
+  max-width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  -webkit-text-size-adjust: 100%;
+  touch-action: pan-y;
 }
 
-/* TOP PROTOTYPE NOTICE BANNER */
+/* Global input lock: 16px prevents iOS Safari from auto-zooming and overfilling the screen */
+input, select, textarea, .input-field {
+  font-size: 16px !important;
+}
+
+/* TOP PROTOTYPE NOTICE BANNER (HIDDEN IN STANDALONE PWA FOR NATIVE APP FEEL) */
 .proto-banner {
   background: #19092c;
   color: #f472b6;
   border-bottom: 1px solid rgba(255, 42, 141, 0.3);
   padding: 7px 16px;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 700;
   text-align: center;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+}
+@media (display-mode: standalone), (max-width: 500px) {
+  .proto-banner {
+    display: none !important;
+  }
 }
 .proto-banner-badge {
   background: linear-gradient(135deg, #ff2a8d 0%, #8b5cf6 100%);
@@ -90,31 +105,48 @@ html, body {
 
 /* APP SHELL & CONTAINER */
 .app-shell {
-  max-width: 520px;
+  width: 100%;
+  max-width: 480px;
   margin: 0 auto;
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--surface-card);
   box-shadow: 0 0 60px rgba(0, 0, 0, 0.8), 0 0 30px rgba(255, 42, 141, 0.12);
   border-left: 1px solid rgba(255, 42, 141, 0.15);
   border-right: 1px solid rgba(255, 42, 141, 0.15);
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
-/* HEADER & MODE SWITCHER */
+@media (max-width: 520px) {
+  .app-shell {
+    max-width: 100%;
+    border-left: none;
+    border-right: none;
+    box-shadow: none;
+  }
+}
+
+/* HEADER WITH SAFE AREA INSET */
 .header-bar {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(13, 7, 24, 0.92);
+  background: rgba(13, 7, 24, 0.96);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid rgba(255, 42, 141, 0.25);
-  padding: 12px 18px;
+  padding-top: max(14px, env(safe-area-inset-top, 0px));
+  padding-bottom: 12px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  box-sizing: border-box;
 }
 
 .brand-block {
@@ -257,9 +289,16 @@ html, body {
 /* MAIN CONTENT AREA */
 .content-body {
   flex: 1;
-  padding: 20px 18px 30px;
+  padding-top: 16px;
+  padding-bottom: max(32px, calc(20px + env(safe-area-inset-bottom, 0px)));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
   display: flex;
   flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 /* TYPOGRAPHY */

@@ -65,9 +65,15 @@ export function renderInstallModal(isOpen, { onClose }) {
           </div>
 
           <!-- APP MODES -->
-          <div style="background:#130a24;border:1px solid rgba(139,92,246,0.3);border-radius:var(--radius-sm);padding:10px 12px;font-size:12px;color:#c084fc;">
-            💡 <strong>Pro-Tip for Pilot Dohntay:</strong> Save <code>hopatl.com/driver</code> (or <code>/driver</code>) to your vehicle phone mount for an instant dedicated Pilot Console!
-          </div>
+          ${(typeof window !== 'undefined' && window.location.pathname.startsWith('/driver')) ? `
+            <div style="background:#130a24;border:1px solid rgba(139,92,246,0.3);border-radius:var(--radius-sm);padding:10px 12px;font-size:12px;color:#c084fc;">
+              💡 <strong>Pilot Console:</strong> Keep this saved to your vehicle phone mount for live telemetry, GPS tracking, and automatic screen wake lock.
+            </div>
+          ` : `
+            <div style="background:#130a24;border:1px solid rgba(255,42,141,0.25);border-radius:var(--radius-sm);padding:10px 12px;font-size:12px;color:#f8fafc;">
+              💡 <strong>VIP Nightlife Access:</strong> Keep TRICKHOPPER on your home screen for instant booking, zero 3 AM surge pricing, and guaranteed curbside return trips.
+            </div>
+          `}
         </div>
 
         <div style="margin-top:16px;">

@@ -140,14 +140,10 @@ export function renderTripStatus(state, { onAdvanceTrip, onSwitchToDriver }) {
         </div>
       </div>
 
-      <!-- SIMULATION CONTROLS -->
+      <!-- ADVANCE / PROGRESS ACTION -->
       <div style="display:flex;flex-direction:column;gap:10px;margin-top:auto;">
-        <button class="btn-primary" id="btnAdvanceStatus" ${isReturnLeg ? `style="background:${state.paymentMethod === 'cash' ? '#15803d' : state.paymentMethod === 'zelle' ? '#7c3aed' : '#00d632'};color:#ffffff;"` : ''}>
+        <button class="btn-primary" id="btnAdvanceStatus" ${isReturnLeg ? `style="background:${state.paymentMethod === 'cash' ? '#16a34a' : state.paymentMethod === 'zelle' ? '#7c3aed' : '#00d632'};color:#ffffff;"` : ''}>
           ${advanceBtnText}
-        </button>
-
-        <button class="btn-secondary" id="btnPeekDriver">
-          Switch to Driver Telemetry View ↗
         </button>
       </div>
     </div>
