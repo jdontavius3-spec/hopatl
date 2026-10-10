@@ -41,7 +41,7 @@ export function renderDriverView(state, { onAcceptRequest, onAdvanceDriverState,
   const navLinks = telemetry.getNavigationLinks(targetLat, targetLng, targetName);
 
   return `
-    <div class="content-body" style="background:#090d16;color:#f8fafc;margin:-20px -18px -30px;padding:24px 18px 30px;">
+    <div class="content-body" style="background:#090d16;color:#f8fafc;width:100%;max-width:100%;box-sizing:border-box;padding:16px 14px max(32px, calc(16px + env(safe-area-inset-bottom, 0px)));overflow-x:hidden;">
       <!-- DEDICATED PILOT DRIVER PROFILE CARD (DOHNTAY) -->
       <div style="background:#130a24;border:1.5px solid var(--primary);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:14px;box-shadow:0 0 18px rgba(255,42,141,0.25);">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;">
@@ -134,7 +134,7 @@ export function renderDriverView(state, { onAcceptRequest, onAdvanceDriverState,
             type="text" 
             id="inputDriverCashTag" 
             value="${state.driverCashTag || driver.cashTag}" 
-            style="background:#090d16;border:1px solid #334155;color:#34d399;font-weight:800;font-size:12px;padding:4px 8px;border-radius:4px;width:160px;text-align:right;"
+            style="background:#090d16;border:1px solid #334155;color:#34d399;font-weight:800;font-size:16px;padding:6px 10px;border-radius:4px;width:140px;max-width:50%;text-align:right;"
           />
         </div>
 
