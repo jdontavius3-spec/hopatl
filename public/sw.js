@@ -4,7 +4,7 @@
  * while bypassing all /api/* dynamic state and telemetry endpoints.
  */
 
-const CACHE_NAME = 'wait-return-shell-v4';
+const CACHE_NAME = 'wait-return-shell-v5';
 
 const STATIC_ASSETS = [
   '/',

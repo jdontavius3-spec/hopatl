@@ -530,6 +530,64 @@ input, select, textarea, .input-field {
   transform: translateY(0);
 }
 
+/* AUTOMOTIVE PILOT CONSOLE IN-CAR OPTIMIZATIONS */
+.btn-in-car {
+  min-height: 56px !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  border-radius: 14px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 10px !important;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  letter-spacing: 0.02em !important;
+  line-height: 1.3 !important;
+  padding: 14px 16px !important;
+}
+
+.driver-nav-btn {
+  min-height: 50px !important;
+  font-size: 14.5px !important;
+  font-weight: 800 !important;
+  border-radius: 12px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  text-decoration: none !important;
+  background: #0f172a !important;
+  color: #f8fafc !important;
+  border: 1.5px solid #334155 !important;
+  box-sizing: border-box !important;
+  transition: all 0.15s ease !important;
+  touch-action: manipulation;
+}
+.driver-nav-btn:active {
+  background: #1e293b !important;
+  border-color: #38bdf8 !important;
+  transform: scale(0.98);
+}
+
+.driver-toggle-btn {
+  min-height: 38px !important;
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  padding: 6px 12px !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  box-sizing: border-box !important;
+  touch-action: manipulation;
+}
+
 .btn-secondary {
   width: 100%;
   background: #180d2d;
