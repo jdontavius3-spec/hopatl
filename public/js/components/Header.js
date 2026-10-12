@@ -28,7 +28,7 @@ export function renderHeader(state, { onModeChange, onAboutClick, onLogoClick })
       break;
     case TRIP_STATES.MATCHING:
       badgeClass = 'matching';
-      badgeText = 'Calling Pilot Dohntay...';
+      badgeText = `Calling Pilot ${state.driver?.name || 'Dohntay'}...`;
       break;
     case TRIP_STATES.DRIVER_ACCEPTED:
       badgeClass = 'enroute';
@@ -68,7 +68,7 @@ export function renderHeader(state, { onModeChange, onAboutClick, onLogoClick })
         <div class="brand-mark">🐰</div>
         <div>
           <div class="brand-name">TRICKHOPPER</div>
-          <div class="brand-tag">Nightlife Bunny Rides · Pilot Dohntay</div>
+          <div class="brand-tag">Nightlife Bunny Rides · Pilot ${state.driver?.name || 'Dohntay'}</div>
         </div>
       </div>
 

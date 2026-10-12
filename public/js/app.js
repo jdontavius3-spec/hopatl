@@ -185,14 +185,14 @@ function renderApp() {
             <span class="footer-link" id="footerResetLink">Reset Demo</span>
             <a class="footer-link" href="/" id="footerRiderLink">← Exit to Rider View</a>
           ` : `
-            <a class="footer-link" href="sms:19432452611?&body=Hey%20Dohntay%2C%20need%20a%20TRICKHOPPER%20ride!">Direct Pilot SMS</a>
+            <a class="footer-link" href="sms:${state.driver?.phone ? state.driver.phone.replace(/[^0-9]/g, '') : '19432452611'}?&body=Hey%20${encodeURIComponent(state.driver?.name || 'Pilot')}%2C%20need%20a%20TRICKHOPPER%20ride!">Direct Pilot SMS (${state.driver?.name || 'Dohntay'})</a>
           `}
         </div>
         <div class="footer-disclaimer">
           ${isDriver ? `
-            TRICKHOPPER PILOT TELEMETRY ENGINE · Dedicated Camry Console
+            TRICKHOPPER PILOT TELEMETRY ENGINE · 2-Pilot Fleet Console (${state.driver?.name || 'Pilot'} Online)
           ` : `
-            🐰 TRICKHOPPER · Atlanta Nightlife Roundtrip Rideshare · Pilot: Dohntay · Zelle, Cash App & Cash.
+            🐰 TRICKHOPPER · Atlanta Nightlife Roundtrip Rideshare · Pilot: ${state.driver?.name || 'Dohntay'} · Cash App, Zelle & Cash.
           `}
         </div>
       </footer>
@@ -549,7 +549,7 @@ function bindEvents() {
     inputDriverCashTag.onchange = (e) => store.setDriverCashTag(e.target.value);
   }
 
-  // Driver Fleet Profile Switcher (Driver 1: Marcus Camry vs Driver 2: Trevon Tahoe)
+  // Driver Fleet Profile Switcher (Driver 1: Dohntay Camry vs Driver 2: Rocko Accord)
   document.querySelectorAll('[data-driver-switch-id]').forEach(btn => {
     btn.onclick = () => {
       const driverId = btn.getAttribute('data-driver-switch-id');

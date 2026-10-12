@@ -129,6 +129,24 @@ export const ATLANTA_DRIVERS = [
     lat: 33.7815,
     lng: -84.3830,
     heading: 45,
+  },
+  {
+    id: 'driver_2',
+    name: 'Rocko',
+    vehicle: '2023 Honda Accord Sport (Sonic Gray)',
+    licensePlate: 'ATL-ROCKO',
+    rating: 5.0,
+    trips: 142,
+    cashTag: '$chadowens46',
+    zellePhone: '4045550146',
+    zelleFormatted: '(404) 555-0146',
+    phone: '(404) 555-0146',
+    etaMinutes: 4,
+    statusText: 'Buckhead / Midtown · Dedicated Pilot Driver Online',
+    photoInitials: 'RO',
+    lat: 33.8480,
+    lng: -84.3630,
+    heading: 90,
   }
 ];
 

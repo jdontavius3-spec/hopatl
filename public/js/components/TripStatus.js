@@ -26,9 +26,9 @@ export function renderTripStatus(state, { onAdvanceTrip, onSwitchToDriver }) {
         <div style="width:70px;height:70px;border-radius:50%;background:rgba(255,42,141,0.15);color:var(--primary);display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto 20px;border:1px solid rgba(255,42,141,0.3);box-shadow:0 0 20px rgba(255,42,141,0.3);animation:pulse 1.5s infinite;">
           🐰
         </div>
-        <h1 class="page-title">Calling Dedicated Pilot Dohntay...</h1>
+        <h1 class="page-title">Calling Dedicated Pilot ${driver.name}...</h1>
         <p class="page-subtitle" style="max-width:320px;">
-          Locating Dohntay (2024 Camry Hybrid · <code>ATL-PILOT</code>) for your ${stops.length}-hop nightlife run.
+          Locating ${driver.name} (${driver.vehicle} · <code>${driver.licensePlate}</code>) for your ${stops.length}-hop nightlife run.
         </p>
       </div>
     `;
@@ -41,7 +41,7 @@ export function renderTripStatus(state, { onAdvanceTrip, onSwitchToDriver }) {
 
   if (isAccepted) {
     statusBadgeText = 'Pilot En Route to Crib';
-    statusTitle = 'Pilot Dohntay is on the way 🐰';
+    statusTitle = `Pilot ${driver.name} is on the way 🐰`;
     statusSubtitle = `Estimated arrival at ${state.pickup} in ${driver.etaMinutes} minutes.`;
     advanceBtnText = 'Simulate Pilot Pickup & Depart →';
   } else if (isReturnLeg) {

@@ -27,14 +27,16 @@ Standard rideshare trips are designed strictly for point-to-point transit. In hi
 
 To ensure operational simplicity and reliability without algorithmic marketplace overhead, the pilot runs with 2 dedicated fleet vehicles:
 
-1. **Driver 1 — Marcus T. (`$MarcusOnTheMove`)**:
-   - **Vehicle**: 2024 Toyota Camry Hybrid (Midnight Black) · Tag: `ATL-792M`
-   - **Rating**: ★ 4.98 (2,140 trips)
+1. **Driver 1 — Dohntay (`$2243Dohntay`)**:
+   - **Vehicle**: 2024 Toyota Camry Hybrid (Midnight Black) · Tag: `ATL-PILOT`
+   - **Rating**: ★ 5.0 (120 trips)
    - **Primary Zone**: Midtown (10th St, Peachtree St, Piedmont Rd)
-2. **Driver 2 — Trevon B. (`$TrevonNightFleet`)**:
-   - **Vehicle**: 2023 Chevrolet Tahoe LT (Gloss Black) · Tag: `GA-448TB`
-   - **Rating**: ★ 4.96 (1,890 trips)
+   - **Settlement**: Cash App `$2243Dohntay` · Zelle `(943) 245-2611`
+2. **Driver 2 — Rocko (`$chadowens46`)**:
+   - **Vehicle**: 2023 Honda Accord Sport (Sonic Gray) · Tag: `ATL-ROCKO`
+   - **Rating**: ★ 5.0 (142 trips)
    - **Primary Zone**: Buckhead (Lenox / Phipps Plaza VIP strip, West Midtown)
+   - **Settlement**: Cash App `$chadowens46` · Zelle `(404) 555-0146`
 
 ---
 
@@ -63,7 +65,7 @@ To ensure operational simplicity and reliability without algorithmic marketplace
 - **Synthesized Audio Chime**: Approving plays the iconic Cash App two-tone chime synthesized in real time via the Web Audio API (`public/js/cashapp.js`).
 
 ### 2. Driver: Instant `$cashtag` Settlement (Zero Delay)
-- Drivers configure their payout handle (e.g. `$MarcusOnTheMove`).
+- Drivers configure their payout handle (e.g. `$2243Dohntay` or `$chadowens46`).
 - The moment the return leg is completed, the driver’s 85% cut arrives in their Cash App balance instantly.
 - Eliminates Uber/Lyft's $0.85–$1.50 instant cashout fees and multi-day ACH bank delays.
 - Real-time chime alert upon trip completion and tip receipt.
@@ -72,7 +74,7 @@ To ensure operational simplicity and reliability without algorithmic marketplace
 - **Zero Digital Pre-Auth Hold**: Riders who prefer physical currency can select **"I Have Cash (Pay in Car)"**.
 - **Agreed Exact Fare**: Displays the exact cash total to hand the driver upon boarding or completion.
 - **In-Vehicle Overtime & Extensions**: Any on-the-fly wait extensions (`+$3.50` for `+10m`) or overtime (`$0.50/min`) are settled directly in cash with the driver.
-- **Driver Console Alert**: The Driver Dashboard displays a prominent **"💵 CASH TRIP · COLLECT IN CAR"** alert banner so Marcus or Trevon knows to collect cash in person before final drop-off.
+- **Driver Console Alert**: The Driver Dashboard displays a prominent **"💵 CASH TRIP · COLLECT IN CAR"** alert banner so Dohntay or Rocko knows to collect cash in person before final drop-off.
 - **One-Tap Driver Cash Receipt**: Drivers tap `"✓ Confirm Cash Received & Finish Trip"` upon arrival to finalize the ride and retain 100% of physical cash in hand with zero processing deductions.
 
 ---

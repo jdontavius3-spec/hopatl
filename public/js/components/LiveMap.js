@@ -137,7 +137,7 @@ export function renderLiveMap(state) {
             `;
           }).join('')}
 
-          <!-- 3. Moving Vehicle Marker (Marcus Camry / Trevon Tahoe) -->
+          <!-- 3. Moving Vehicle Marker (Dohntay Camry / Rocko Accord) -->
           <g transform="translate(180, 115) rotate(${gps.heading || 45})" filter="url(#carGlow)">
             <!-- Outer radar pulse -->
             <circle cx="0" cy="0" r="16" fill="rgba(0, 229, 255, 0.2)" />

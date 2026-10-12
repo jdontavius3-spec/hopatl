@@ -660,7 +660,7 @@ class Store {
         if (isCash) {
           completionNotif = `💵 Cash received! ${this.state.pricing.formatted.totalEstimate} collected directly in car.`;
         } else if (isZelle) {
-          completionNotif = `🟣 Zelle payment verified! ${this.state.pricing.formatted.totalEstimate} received by Dohntay via Zelle.`;
+          completionNotif = `🟣 Zelle payment verified! ${this.state.pricing.formatted.totalEstimate} received by ${this.state.driver?.name || 'pilot'} via Zelle.`;
         }
 
         this.setState({
@@ -736,7 +736,7 @@ class Store {
 
     let tipNotif = `💚 +$${tip.toFixed(2)} tip sent directly to ${this.state.driverCashTag} via Cash App!`;
     if (isZelle) {
-      tipNotif = `🟣 +$${tip.toFixed(2)} tip sent directly to Dohntay via Zelle (${this.state.driverZelleFormatted || '(943) 245-2611'})!`;
+      tipNotif = `🟣 +$${tip.toFixed(2)} tip sent directly to ${this.state.driver?.name || 'pilot'} via Zelle (${this.state.driverZelleFormatted || '(943) 245-2611'})!`;
     } else if (isCash) {
       tipNotif = `💵 +$${tip.toFixed(2)} tip handed in cash directly to driver!`;
     }

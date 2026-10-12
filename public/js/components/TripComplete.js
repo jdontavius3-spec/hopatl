@@ -33,7 +33,7 @@ export function renderTripComplete(state, { onPlanAnotherTrip, onSendTip }) {
         </div>
         <h1 class="page-title">Nightlife Run Completed! 🐰</h1>
         <p class="page-subtitle" style="margin-bottom:0;">
-          ${stops.length} hop${stops.length > 1 ? 's' : ''} completed. Pilot Dohntay brought you back safe. Zero 3 AM surge.
+          ${stops.length} hop${stops.length > 1 ? 's' : ''} completed. Pilot ${driver.name} brought you back safe. Zero 3 AM surge.
         </p>
       </div>
 
@@ -124,7 +124,7 @@ export function renderTripComplete(state, { onPlanAnotherTrip, onSendTip }) {
             <div>
               <div class="pricing-item-name">Total Settled</div>
               <div class="pricing-item-desc">
-                ${isCash ? 'Paid in cash directly to pilot driver in vehicle' : isZelle ? `Direct bank transfer to Dohntay at ${driver.zelleFormatted || '(943) 245-2611'}` : isCashApp ? `Pre-auth hold of $${holdTotal} settled; unused buffer released.` : 'Matched upfront estimate'}
+                ${isCash ? 'Paid in cash directly to pilot driver in vehicle' : isZelle ? `Direct bank transfer to ${driver.name} at ${driver.zelleFormatted || '(943) 245-2611'}` : isCashApp ? `Pre-auth hold of $${holdTotal} settled; unused buffer released.` : 'Matched upfront estimate'}
               </div>
             </div>
             <div class="pricing-item-val" style="color:${isCash ? '#4ade80' : isZelle ? '#c084fc' : '#ff2a8d'};font-weight:900;font-size:22px;text-shadow:0 0 12px ${isCash ? 'rgba(74,222,128,0.3)' : isZelle ? 'rgba(192,132,252,0.3)' : 'rgba(255,42,141,0.3)'};">
@@ -145,7 +145,7 @@ export function renderTripComplete(state, { onPlanAnotherTrip, onSendTip }) {
           <div style="background:#180b2a;border-radius:var(--radius-sm);padding:12px 14px;border:1.5px solid rgba(168,85,247,0.35);font-size:12px;color:#f3e8ff;margin-top:14px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 0 14px rgba(168,85,247,0.2);">
             <div>
               <strong style="color:#c084fc;">🟣 Zelle Bank Transfer Verified:</strong><br>
-              <span style="color:#ffffff;font-weight:700;">${p.formatted.totalEstimate}</span> transferred to Dohntay at <strong style="color:#c084fc;">${driver.zelleFormatted || '(943) 245-2611'}</strong>.
+              <span style="color:#ffffff;font-weight:700;">${p.formatted.totalEstimate}</span> transferred to ${driver.name} at <strong style="color:#c084fc;">${driver.zelleFormatted || '(943) 245-2611'}</strong>.
             </div>
             <div style="font-weight:800;color:#c084fc;font-size:12px;background:rgba(168,85,247,0.2);padding:4px 8px;border-radius:6px;border:1px solid rgba(168,85,247,0.4);">Direct to Bank ✓</div>
           </div>

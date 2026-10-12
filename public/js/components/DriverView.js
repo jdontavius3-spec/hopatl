@@ -43,7 +43,34 @@ export function renderDriverView(state, { onAcceptRequest, onAdvanceDriverState,
   return `
     <div class="content-body" style="background:#090d16;color:#f8fafc;width:100%;max-width:100%;box-sizing:border-box;padding:12px 14px max(32px, calc(16px + env(safe-area-inset-bottom, 0px)));overflow-x:hidden;display:flex;flex-direction:column;gap:10px;">
       
-      <!-- 1. PILOT DRIVER PROFILE CARD (DOHNTAY) -->
+      <!-- 0. PILOT FLEET IDENTITY SELECTOR (DOHNTAY VS ROCKO) -->
+      <div style="background:#0c0618;border:1px solid rgba(255,42,141,0.3);border-radius:var(--radius-md);padding:10px 12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <span style="font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;">Active Pilot Identity:</span>
+          <span style="font-size:11px;color:#34d399;font-weight:800;">2-Pilot Fleet ●</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          ${ATLANTA_DRIVERS.map(drv => {
+            const isSelected = (state.selectedDriverId === drv.id) || (driver.id === drv.id);
+            return `
+              <button 
+                type="button" 
+                data-driver-switch-id="${drv.id}"
+                style="background:${isSelected ? 'linear-gradient(135deg, #ff2a8d 0%, #a855f7 100%)' : '#180e29'};color:#ffffff;border:1.5px solid ${isSelected ? '#ff2a8d' : 'rgba(255,42,141,0.25)'};padding:10px;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:10px;text-align:left;box-shadow:${isSelected ? '0 0 14px rgba(255,42,141,0.4)' : 'none'};"
+              >
+                <div style="font-size:22px;line-height:1;">${isSelected ? '🐰' : '🚗'}</div>
+                <div style="min-width:0;flex:1;">
+                  <div style="font-weight:900;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${drv.name}</div>
+                  <div style="font-size:11.5px;color:${isSelected ? '#ffffff' : '#00d632'};font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${drv.cashTag}</div>
+                  <div style="font-size:10px;color:${isSelected ? 'rgba(255,255,255,0.85)' : '#94a3b8'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;">${drv.licensePlate}</div>
+                </div>
+              </button>
+            `;
+          }).join('')}
+        </div>
+      </div>
+
+      <!-- 1. PILOT DRIVER PROFILE CARD -->
       <div style="background:#130a24;border:1.5px solid var(--primary);border-radius:var(--radius-md);padding:12px 14px;box-shadow:0 0 18px rgba(255,42,141,0.25);">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <div style="display:flex;align-items:center;gap:12px;">
@@ -53,7 +80,7 @@ export function renderDriverView(state, { onAcceptRequest, onAdvanceDriverState,
             <div>
               <div style="display:flex;align-items:center;gap:8px;">
                 <span style="font-size:17px;font-weight:900;color:#f8fafc;">${driver.name}</span>
-                <span style="font-size:11px;background:var(--primary);color:#ffffff;font-weight:800;padding:2px 7px;border-radius:5px;letter-spacing:0.04em;">SOLE PILOT</span>
+                <span style="font-size:11px;background:var(--primary);color:#ffffff;font-weight:800;padding:2px 7px;border-radius:5px;letter-spacing:0.04em;">DEDICATED PILOT</span>
               </div>
               <div style="font-size:13px;color:#cbd5e1;margin-top:2px;font-weight:600;">
                 ${driver.vehicle} · <strong style="color:#ff70ba;">${driver.licensePlate}</strong>
@@ -86,7 +113,7 @@ export function renderDriverView(state, { onAcceptRequest, onAdvanceDriverState,
             </div>
             <div>
               <div style="font-size:13px;font-weight:900;color:#d8b4fe;text-transform:uppercase;letter-spacing:0.04em;">ZELLE DIRECT BANK TRANSFER</div>
-              <div style="font-size:12px;color:#f3e8ff;margin-top:2px;">Passenger sending Zelle to <strong>(943) 245-2611</strong> (Dohntay)</div>
+              <div style="font-size:12px;color:#f3e8ff;margin-top:2px;">Passenger sending Zelle to <strong>${driver.zelleFormatted || '(943) 245-2611'}</strong> (${driver.name})</div>
             </div>
           </div>
           <div style="text-align:right;">
@@ -338,7 +365,7 @@ export function renderDriverView(state, { onAcceptRequest, onAdvanceDriverState,
               ${state.paymentMethod === 'cash' 
                 ? `<strong>${p.formatted.totalEstimate}</strong> collected directly from passenger in vehicle.` 
                 : state.paymentMethod === 'zelle'
-                ? `<strong>${p.formatted.totalEstimate}</strong> received via Zelle to <strong>(943) 245-2611</strong>.`
+                ? `<strong>${p.formatted.totalEstimate}</strong> received via Zelle to <strong>${driver.zelleFormatted || '(943) 245-2611'}</strong>.`
                 : `<strong>+$${p.driverPayout.totalEarnings.toFixed(2)}</strong> deposited to <strong>${state.driverCashTag || driver.cashTag}</strong>`}
             </div>
             <div style="font-size:12px;color:${state.paymentMethod === 'zelle' ? '#c084fc' : '#6ee7b7'};margin-top:4px;">

@@ -44,7 +44,7 @@ export function renderFareReview(state, { onConfirmBooking, onEditDetails, onSel
           <div class="route-leg-content">
             <div class="route-leg-tag">Origin / Starting Crib</div>
             <div class="route-leg-name">${state.pickup}</div>
-            <div class="route-leg-meta">Nightlife run begins here with Pilot Dohntay</div>
+            <div class="route-leg-meta">Nightlife run begins here with Pilot ${state.driver.name}</div>
           </div>
         </div>
 
@@ -64,7 +64,7 @@ export function renderFareReview(state, { onConfirmBooking, onEditDetails, onSel
                 </div>
                 <div class="route-leg-name">${stop.name}</div>
                 <div class="route-leg-meta">
-                  Pilot Dohntay holds vehicle curb position with climate control & security active
+                  Pilot ${state.driver.name} holds vehicle curb position with climate control & security active
                 </div>
               </div>
             </div>
@@ -81,7 +81,7 @@ export function renderFareReview(state, { onConfirmBooking, onEditDetails, onSel
               Return Hop to Crib · ${returnLeg.distanceMiles} mi (20% Roundtrip Discount)
             </div>
             <div class="route-leg-name">${state.pickup}</div>
-            <div class="route-leg-meta">Pilot Dohntay brings you back safely to your front door</div>
+            <div class="route-leg-meta">Pilot ${state.driver.name} brings you back safely to your front door</div>
           </div>
         </div>
       </div>
@@ -190,7 +190,7 @@ export function renderFareReview(state, { onConfirmBooking, onEditDetails, onSel
                 <span style="font-size:9.5px;background:#15803d;color:#ffffff;padding:1px 6px;border-radius:10px;font-weight:800;">Cash in Hand</span>
               </div>
               <div style="font-size:12px;color:#cbd5e1;margin-top:2px;">
-                Pay exact fare (<strong style="color:#4ade80;">${p.formatted.totalEstimate}</strong>) directly to Pilot Dohntay in vehicle.
+                Pay exact fare (<strong style="color:#4ade80;">${p.formatted.totalEstimate}</strong>) directly to Pilot ${state.driver.name} in vehicle.
               </div>
             </div>
             <input type="radio" name="payMethod" ${state.paymentMethod === 'cash' ? 'checked' : ''} style="accent-color:#22c55e;width:18px;height:18px;" />
@@ -209,7 +209,7 @@ export function renderFareReview(state, { onConfirmBooking, onEditDetails, onSel
                 <span style="font-size:9.5px;background:#00d632;color:#ffffff;padding:1px 6px;border-radius:10px;font-weight:800;">Instant Escrow</span>
               </div>
               <div style="font-size:12px;color:#cbd5e1;margin-top:2px;">
-                Direct to Pilot Dohntay (<strong style="color:#34d399;">$2243Dohntay</strong>). Pre-authorizes estimate + $15 wait buffer.
+                Direct to Pilot ${state.driver.name} (<strong style="color:#34d399;">${state.driverCashTag || state.driver.cashTag}</strong>). Pre-authorizes estimate + $15 wait buffer.
               </div>
             </div>
             <input type="radio" name="payMethod" ${state.paymentMethod === 'cashapp' ? 'checked' : ''} style="accent-color:#00d632;width:18px;height:18px;" />
@@ -228,7 +228,7 @@ export function renderFareReview(state, { onConfirmBooking, onEditDetails, onSel
                 <span style="font-size:9.5px;background:#7c3aed;color:#ffffff;padding:1px 6px;border-radius:10px;font-weight:800;">Direct to Pilot</span>
               </div>
               <div style="font-size:12px;color:#cbd5e1;margin-top:2px;">
-                Send direct from bank app to <strong style="color:#c084fc;">(943) 245-2611</strong>. Zero processing fees.
+                Send direct from bank app to <strong style="color:#c084fc;">${state.driver.zelleFormatted || '(943) 245-2611'}</strong>. Zero processing fees.
               </div>
             </div>
             <input type="radio" name="payMethod" ${state.paymentMethod === 'zelle' ? 'checked' : ''} style="accent-color:#a855f7;width:18px;height:18px;" />
@@ -243,7 +243,7 @@ export function renderFareReview(state, { onConfirmBooking, onEditDetails, onSel
                 <span style="font-size:18px;">🟣</span>
                 <div>
                   <strong style="color:#ffffff;font-size:13.5px;display:block;">Zelle Instant Transfer Details</strong>
-                  <span style="font-size:11.5px;color:#d8b4fe;">Direct deposit to pilot driver Dohntay</span>
+                  <span style="font-size:11.5px;color:#d8b4fe;">Direct deposit to pilot driver ${state.driver.name}</span>
                 </div>
               </div>
               <span style="font-size:10px;background:#7c3aed;color:#ffffff;font-weight:800;padding:2px 7px;border-radius:4px;">Direct Bank Payout</span>
@@ -252,13 +252,13 @@ export function renderFareReview(state, { onConfirmBooking, onEditDetails, onSel
             <div style="background:#0e061a;border:1px solid rgba(168,85,247,0.3);border-radius:8px;padding:12px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
               <div>
                 <div style="font-size:10.5px;color:#cbd5e1;text-transform:uppercase;font-weight:700;">Zelle Recipient Phone:</div>
-                <div style="font-size:18px;font-weight:900;color:#ffffff;letter-spacing:0.03em;">(943) 245-2611</div>
-                <div style="font-size:11.5px;color:#c084fc;font-weight:700;">Registered Name: Dohntay</div>
+                <div style="font-size:18px;font-weight:900;color:#ffffff;letter-spacing:0.03em;">${state.driver.zelleFormatted || '(943) 245-2611'}</div>
+                <div style="font-size:11.5px;color:#c084fc;font-weight:700;">Registered Name: ${state.driver.name}</div>
               </div>
               <button 
                 type="button" 
                 id="btnCopyZelle" 
-                data-zelle-number="9432452611"
+                data-zelle-number="${state.driver.zellePhone || '9432452611'}"
                 style="background:#7c3aed;border:none;color:#ffffff;font-size:12px;font-weight:800;padding:8px 14px;border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(124,58,237,0.4);"
               >
                 <span>📋</span>
@@ -268,7 +268,7 @@ export function renderFareReview(state, { onConfirmBooking, onEditDetails, onSel
 
             <div style="font-size:12px;color:#e2d9fc;line-height:1.6;">
               • Open your bank app (Chase, Bank of America, Wells Fargo, Capital One, etc.)<br>
-              • Select <strong>Zelle</strong> → Send <strong style="color:#ffffff;">${p.formatted.totalEstimate}</strong> to <strong style="color:#c084fc;">(943) 245-2611</strong> (Dohntay)<br>
+              • Select <strong>Zelle</strong> → Send <strong style="color:#ffffff;">${p.formatted.totalEstimate}</strong> to <strong style="color:#c084fc;">${state.driver.zelleFormatted || '(943) 245-2611'}</strong> (${state.driver.name})<br>
               • Tap below to confirm and your ride will be dispatched immediately!
             </div>
           </div>
@@ -306,7 +306,7 @@ export function renderFareReview(state, { onConfirmBooking, onEditDetails, onSel
           <!-- Pre-Auth Escrow Buffer Note -->
           <div style="margin-top:12px;background:rgba(0,214,50,0.08);border:1px solid rgba(0,214,50,0.3);border-radius:var(--radius-sm);padding:12px 14px;font-size:12px;line-height:1.6;color:#e2e8f0;">
             🔒 <strong style="color:#34d399;">Cash App Pre-Auth Hold: $${holdTotal}</strong><br>
-            Direct escrow to pilot driver <strong>Dohntay (${state.driverCashTag || '$2243Dohntay'})</strong>. Includes your <strong style="color:#ffffff;">${p.formatted.totalEstimate}</strong> upfront estimate plus a <strong>$15.00 wait buffer</strong> so you can extend time at your stops without re-authorizing payment. Any unused buffer is released automatically upon return trip completion.
+            Direct escrow to pilot driver <strong>${state.driver.name} (${state.driverCashTag || state.driver.cashTag})</strong>. Includes your <strong style="color:#ffffff;">${p.formatted.totalEstimate}</strong> upfront estimate plus a <strong>$15.00 wait buffer</strong> so you can extend time at your stops without re-authorizing payment. Any unused buffer is released automatically upon return trip completion.
           </div>
         ` : ''}
       </div>

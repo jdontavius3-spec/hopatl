@@ -33,7 +33,7 @@ export function renderZelleModal(isOpen, state, { onConfirmZelle, onCancel }) {
             <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:#b4a9cb;letter-spacing:0.04em;">Exact Fare to Send</div>
             <div style="font-size:38px;font-weight:900;color:#ffffff;letter-spacing:-0.03em;margin:4px 0;">${p.formatted.totalEstimate}</div>
             <div style="font-size:12px;color:#c084fc;background:rgba(168,85,247,0.15);display:inline-block;padding:4px 12px;border-radius:20px;font-weight:700;margin-top:4px;border:1px solid rgba(168,85,247,0.3);">
-              ${state.stops.length} Hop${state.stops.length > 1 ? 's' : ''} Run · 100% Goes to Pilot Dohntay
+              ${state.stops.length} Hop${state.stops.length > 1 ? 's' : ''} Run · 100% Goes to Pilot ${state.driver?.name || 'Dohntay'}
             </div>
           </div>
 
@@ -42,7 +42,7 @@ export function renderZelleModal(isOpen, state, { onConfirmZelle, onCancel }) {
             <div style="display:flex;justify-content:space-between;align-items:center;">
               <div>
                 <span style="font-size:10.5px;color:#b4a9cb;text-transform:uppercase;font-weight:700;">Recipient Name:</span>
-                <div style="font-size:15px;font-weight:800;color:#ffffff;">Dohntay</div>
+                <div style="font-size:15px;font-weight:800;color:#ffffff;">${state.driver?.name || 'Dohntay'}</div>
               </div>
               <span style="font-size:10px;background:#7c3aed;color:#ffffff;font-weight:800;padding:3px 8px;border-radius:6px;box-shadow:0 0 8px rgba(124,58,237,0.5);">Verified Pilot</span>
             </div>

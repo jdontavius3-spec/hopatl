@@ -42,7 +42,7 @@ export function renderCashAppModal(isOpen, state, { onApprove, onCancel }) {
             </div>
             <div style="display:flex;justify-content:space-between;align-items:center;">
               <span style="color:#b4a9cb;">Recipient:</span>
-              <strong style="color:#ffffff;font-size:13px;">Dohntay · <span style="color:#00d632;">${state.driverCashTag || '$2243Dohntay'}</span></strong>
+              <strong style="color:#ffffff;font-size:13px;">${state.driver?.name || 'Dohntay'} · <span style="color:#00d632;">${state.driverCashTag || '$2243Dohntay'}</span></strong>
             </div>
             <div style="display:flex;justify-content:space-between;align-items:center;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06);">
               <span style="color:#b4a9cb;">Capture Policy:</span>

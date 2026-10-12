@@ -53,7 +53,7 @@ export function renderWaitingStop(state, { onReadyToReturn, onExtendWait, onStar
           <div>
             <div style="font-weight:800;font-size:13px;color:#fbbf24;">3-Minute Grace Warning (${timerDisplay} remaining)</div>
             <div style="margin-top:2px;color:#fef3c7;line-height:1.45;">
-              Your reserved wait window is ending soon. Head back to Pilot Dohntay's Camry or tap <strong style="color:#ffffff;">+10 min</strong> below to lock in the standard <strong style="color:#fbbf24;">$0.35/min</strong> rate and avoid the $0.50/min overtime meter.
+              Your reserved wait window is ending soon. Head back to Pilot ${state.driver.name}'s vehicle or tap <strong style="color:#ffffff;">+10 min</strong> below to lock in the standard <strong style="color:#fbbf24;">$0.35/min</strong> rate and avoid the $0.50/min overtime meter.
             </div>
           </div>
         </div>
@@ -102,13 +102,13 @@ export function renderWaitingStop(state, { onReadyToReturn, onExtendWait, onStar
             <span>${isFinalStop ? '🐰 I\'m Ready to Return to the Crib' : `🐰 I\'m Ready for Hop ${curIdx + 2} (${nextStop?.name.split('(')[0].trim()})`}</span>
           </button>
           <div style="text-align:center;font-size:12px;color:var(--text-secondary);margin-top:8px;">
-            Tap when walking out of the venue to alert Pilot Dohntay
+            Tap when walking out of the venue to alert Pilot ${state.driver.name}
           </div>
         </div>
       ` : `
         <div class="card" style="background:#130a24;border:1px solid rgba(52,211,153,0.4);text-align:center;padding:16px;margin:16px 0 16px;">
           <div style="font-size:14.5px;font-weight:800;color:#34d399;margin-bottom:4px;">
-            ✓ Pilot Dohntay Alerted!
+            ✓ Pilot ${state.driver.name} Alerted!
           </div>
           <div style="font-size:12.5px;color:#a7f3d0;margin-bottom:14px;">
             Head to the curb. Your ${state.driver.vehicle} is holding position.

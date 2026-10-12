@@ -15,7 +15,7 @@ export function renderLanding(state, { onStartBooking }) {
           Hop All Night. One Pilot Driver.<br><span style="color:var(--primary);">Never Lose Your Ride.</span>
         </h1>
         <p class="page-subtitle" style="max-width:390px;margin:10px auto 24px;font-size:15px;line-height:1.5;">
-          Atlanta's late-night roundtrip rideshare. Pilot Dohntay waits curbside while you pre-game, hit the VIP lounge, grab a bite, or change fits—with guaranteed curbside wait and zero stranded rides.
+          Atlanta's late-night roundtrip rideshare. Dedicated fleet pilots Dohntay and Rocko wait curbside while you pre-game, hit the VIP lounge, grab a bite, or change fits—with guaranteed curbside wait and zero stranded rides.
         </p>
 
         <!-- PRIMARY CTA BUTTON -->
@@ -56,7 +56,7 @@ export function renderLanding(state, { onStartBooking }) {
             <div>
               <div style="font-size:13.5px;font-weight:700;color:var(--text-primary);">The Nightlife Bunny Model</div>
               <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">
-                Dedicated pilot driver Dohntay (<code>ATL-PILOT</code>) stays curbside with your belongings locked safe inside and AC/heat running. Transparent wait pay, zero surge, return hop right to your crib.
+                Dedicated pilot drivers Dohntay (<code>ATL-PILOT</code>) and Rocko (<code>ATL-ROCKO</code>) stay curbside with your belongings locked safe inside and AC/heat running. Transparent wait pay, zero surge, return hop right to your crib.
               </div>
             </div>
           </div>

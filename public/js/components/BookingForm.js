@@ -9,6 +9,7 @@ import {
   PRESET_DESTINATIONS, 
   WAIT_PRESETS, 
   ATLANTA_CUSTOM_SUGGESTIONS,
+  ATLANTA_DRIVERS,
   calculateHaversineDistanceMiles 
 } from '../data.js';
 
@@ -24,13 +25,14 @@ export function renderBookingForm(state, { onUpdateField, onSubmitReview }) {
 
   const pricing = state.pricing;
   const pickup = state.pickup || PRESET_LOCATIONS[0].name;
+  const activePilot = state.driver || ATLANTA_DRIVERS[0];
 
   return `
     <div class="content-body">
       <div style="margin-bottom:16px;">
         <h1 class="page-title">Plan Your TRICKHOPPER Run 🐰</h1>
         <p class="page-subtitle">
-          Add your nightlife hops across Atlanta. Pilot Dohntay waits curbside at each stop with your gear safe inside—calculated via real GPS coordinates.
+          Add your nightlife hops across Atlanta. Pilot ${activePilot.name} waits curbside at each stop with your gear safe inside—calculated via real GPS coordinates.
         </p>
       </div>
 
@@ -96,7 +98,7 @@ export function renderBookingForm(state, { onUpdateField, onSubmitReview }) {
                 🐰 Nightlife Hops & Itinerary
               </label>
               <div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">
-                Add up to 3 hops. Pilot Dohntay parks curbside at each stop with climate control active.
+                Add up to 3 hops. Pilot ${activePilot.name} parks curbside at each stop with climate control active.
               </div>
             </div>
             <span style="font-size:11px;font-weight:800;background:var(--primary-subtle);color:var(--primary);padding:3px 8px;border-radius:12px;border:1px solid rgba(255,42,141,0.25);">
@@ -242,7 +244,7 @@ export function renderBookingForm(state, { onUpdateField, onSubmitReview }) {
             </span>
           </div>
           <div style="font-size:12px;color:#a7f3d0;line-height:1.5;">
-            After your final hop, Pilot Dohntay returns you directly to <strong>${pickup}</strong>.
+            After your final hop, Pilot ${activePilot.name} returns you directly to <strong>${pickup}</strong>.
             Belongings stay safe inside the car, zero second booking, zero 3 AM surge, zero waiting in the cold.
           </div>
         </div>
@@ -264,7 +266,37 @@ export function renderBookingForm(state, { onUpdateField, onSubmitReview }) {
           </div>
         </div>
 
-        <!-- 5. PASSENGER COUNT -->
+        <!-- 5. CHOOSE DEDICATED PILOT (2-DRIVER FLEET) -->
+        <div class="form-group" style="margin-top:18px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <label class="form-label" style="margin-bottom:0;">
+              🐰 Select Dedicated Pilot Driver
+            </label>
+            <span style="font-size:11px;color:var(--text-tertiary);">2-Pilot Fleet · Guaranteed Curbside Wait</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            ${ATLANTA_DRIVERS.map(drv => {
+              const isSelected = (state.selectedDriverId === drv.id) || (state.driver?.id === drv.id);
+              return `
+                <button 
+                  type="button" 
+                  class="preset-btn ${isSelected ? 'active' : ''}" 
+                  data-driver-switch-id="${drv.id}"
+                  style="padding:10px 12px;text-align:left;display:flex;align-items:center;gap:10px;border-color:${isSelected ? 'var(--primary)' : 'rgba(255,42,141,0.2)'};"
+                >
+                  <div style="font-size:22px;">${isSelected ? '🐰' : '🚗'}</div>
+                  <div style="min-width:0;flex:1;">
+                    <div class="preset-name" style="font-size:13.5px;font-weight:800;color:#ffffff;">${drv.name}</div>
+                    <div class="preset-sub" style="font-size:11px;color:${isSelected ? '#ffffff' : '#00d632'};font-weight:800;">${drv.cashTag}</div>
+                    <div style="font-size:10px;color:var(--text-tertiary);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${drv.licensePlate}</div>
+                  </div>
+                </button>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- 6. PASSENGER COUNT -->
         <div class="form-group" style="margin-top:18px;">
           <label class="form-label">Passengers</label>
           <div style="display:flex;gap:10px;">

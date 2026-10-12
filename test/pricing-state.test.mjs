@@ -162,6 +162,25 @@ describe('Mock Data & Custom Destination Verification', () => {
     assert.ok(pilot.lng < -84.3 && pilot.lng > -84.5, 'Pilot is in Atlanta longitude');
   });
 
+  test('pilot driver Rocko has verified Cash App ($chadowens46), vehicle and Atlanta coordinates', () => {
+    const rocko = MOCK_DRIVERS.find(d => d.id === 'driver_2');
+
+    assert.ok(rocko, 'Rocko pilot profile exists in fleet');
+    assert.equal(rocko.name, 'Rocko');
+    assert.equal(rocko.cashTag, '$chadowens46');
+    assert.equal(rocko.licensePlate, 'ATL-ROCKO');
+    assert.equal(rocko.rating, 5.0);
+    assert.ok(rocko.vehicle.includes('Honda Accord'));
+    assert.ok(rocko.lat > 33.7 && rocko.lat < 33.9, 'Rocko is in Atlanta latitude');
+    assert.ok(rocko.lng < -84.3 && rocko.lng > -84.5, 'Rocko is in Atlanta longitude');
+  });
+
+  test('fleet maintains exactly 2 dedicated Atlanta nightlife pilot drivers', () => {
+    assert.equal(MOCK_DRIVERS.length, 2, 'Fleet consists of 2 dedicated pilots');
+    assert.deepEqual(MOCK_DRIVERS.map(d => d.name), ['Dohntay', 'Rocko']);
+    assert.deepEqual(MOCK_DRIVERS.map(d => d.cashTag), ['$2243Dohntay', '$chadowens46']);
+  });
+
   test('Atlanta Nightlife destinations feature valid GPS pins and descriptions', () => {
     for (const dest of PRESET_DESTINATIONS) {
       assert.ok(dest.lat && dest.lng, `${dest.name} has GPS coordinates`);
@@ -349,6 +368,14 @@ describe('Zelle Instant Bank Transfer & Pilot Driver Verification', () => {
     assert.equal(pilot.cashTag, '$2243Dohntay');
     assert.equal(pilot.zellePhone, '9432452611');
     assert.equal(pilot.zelleFormatted, '(943) 245-2611');
+  });
+
+  test('wires payments to pilot driver Rocko via Cash App $chadowens46 and Zelle (404) 555-0146', () => {
+    const rocko = MOCK_DRIVERS[1];
+    assert.equal(rocko.name, 'Rocko');
+    assert.equal(rocko.cashTag, '$chadowens46');
+    assert.equal(rocko.zellePhone, '4045550146');
+    assert.equal(rocko.zelleFormatted, '(404) 555-0146');
   });
 
   test('Zelle transaction captures full exact upfront fare without card processing fees', () => {

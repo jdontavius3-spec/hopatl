@@ -30,10 +30,10 @@ export function renderAboutModal(isOpen, { onClose }) {
               The Nightlife Bunny Model
             </strong>
             <ul style="padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:12.5px;">
-              <li><strong>Dedicated Pilot:</strong> Sole pilot driver Dohntay (<code>ATL-PILOT</code>) stays on-site with your vehicle warmed/cooled and belongings locked safe.</li>
+              <li><strong>Dedicated Pilot:</strong> Fleet pilot drivers Dohntay (<code>ATL-PILOT</code>) and Rocko (<code>ATL-ROCKO</code>) stay on-site with your vehicle warmed/cooled and belongings locked safe.</li>
               <li><strong>Guaranteed Curbside Wait:</strong> $0.35/min ($21.00/hr) transparently itemized upfront.</li>
               <li><strong>Return Hop Discount:</strong> 20% discount on the return leg back to your crib.</li>
-              <li><strong>Direct Pilot Settlement:</strong> Zero card processing fees via <strong>Zelle</strong> (<code>(943) 245-2611</code>), <strong>Cash App</strong> (<code>$2243Dohntay</code>), or <strong>Cash in vehicle</strong>.</li>
+              <li><strong>Direct Pilot Settlement:</strong> Zero card processing fees via <strong>Cash App</strong> (<code>$2243Dohntay</code> / <code>$chadowens46</code>), <strong>Zelle</strong> (<code>(943) 245-2611</code> / <code>(404) 555-0146</code>), or <strong>Cash in vehicle</strong>.</li>
             </ul>
           </div>
 
