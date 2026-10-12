@@ -2,8 +2,15 @@
   "outputDirectory": "public",
   "cleanUrls": true,
   "rewrites": [
+    { "source": "/driver/rocko", "destination": "/driver/rocko/index.html" },
+    { "source": "/driver/dohntay", "destination": "/driver/dohntay/index.html" },
+    { "source": "/driver/:path*", "destination": "/driver/index.html" },
     { "source": "/driver", "destination": "/driver/index.html" },
-    { "source": "/((?!api|css|js|icons|audio|manifest.json|driver|favicon.ico).*)", "destination": "/index.html" }
+    { "source": "/pilot/:path*", "destination": "/driver/index.html" },
+    { "source": "/pilot", "destination": "/driver/index.html" },
+    { "source": "/rocko", "destination": "/rocko/index.html" },
+    { "source": "/dohntay", "destination": "/dohntay/index.html" },
+    { "source": "/((?!api|css|js|icons|audio|manifest.json|driver|pilot|rocko|dohntay|favicon.ico).*)", "destination": "/index.html" }
   ],
   "headers": [
     {

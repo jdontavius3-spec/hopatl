@@ -135,13 +135,33 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // 5. Driver direct shortcut: /driver -> serves driver/index.html
-  if (pathname === '/driver' || pathname === '/driver/') {
-    const indexPath = path.join(PUBLIC_DIR, 'driver', 'index.html');
-    fs.readFile(indexPath, (err, data) => {
+  // 5. Driver direct shortcuts: /driver, /driver/rocko, /driver/dohntay, /pilot, /rocko, /dohntay
+  if (
+    pathname === '/driver' || pathname === '/driver/' ||
+    pathname.startsWith('/driver/') ||
+    pathname === '/pilot' || pathname === '/pilot/' ||
+    pathname.startsWith('/pilot/') ||
+    pathname === '/rocko' || pathname === '/rocko/' ||
+    pathname === '/dohntay' || pathname === '/dohntay/'
+  ) {
+    let targetHtml = path.join(PUBLIC_DIR, 'driver', 'index.html');
+    if (pathname.includes('rocko')) {
+      targetHtml = path.join(PUBLIC_DIR, 'driver', 'rocko', 'index.html');
+    } else if (pathname.includes('dohntay')) {
+      targetHtml = path.join(PUBLIC_DIR, 'driver', 'dohntay', 'index.html');
+    }
+
+    fs.readFile(targetHtml, (err, data) => {
       if (err) {
-        res.writeHead(500, { 'Content-Type': 'text/plain' });
-        res.end('Server Error');
+        fs.readFile(path.join(PUBLIC_DIR, 'driver', 'index.html'), (err2, data2) => {
+          if (err2) {
+            res.writeHead(500, { 'Content-Type': 'text/plain' });
+            res.end('Server Error');
+            return;
+          }
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+          res.end(data2);
+        });
         return;
       }
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });

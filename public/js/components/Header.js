@@ -84,11 +84,11 @@ export function renderHeader(state, { onModeChange, onAboutClick, onLogoClick })
           </a>
         </div>
       ` : `
-        <div style="display:flex;align-items:center;gap:8px;">
-          <button id="btnInstallApp" style="background:#130a24;border:1px solid rgba(255,42,141,0.35);color:#ff70ba;padding:5px 10px;border-radius:12px;font-size:11px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:4px;box-shadow:0 0 10px rgba(255,42,141,0.2);">
-            <span>📲</span>
-            <span>Save App</span>
-          </button>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <a href="/driver" id="btnNavPilotPortal" style="background:#130a24;border:1.5px solid var(--primary);color:#ff70ba;padding:5px 10px;border-radius:12px;font-size:11px;font-weight:800;text-decoration:none;display:inline-flex;align-items:center;gap:4px;box-shadow:0 0 10px rgba(255,42,141,0.25);">
+            <span>🚗</span>
+            <span>Pilot Console ↗</span>
+          </a>
           <button id="btnAbout" style="background:transparent;border:none;color:var(--text-secondary);font-size:11.5px;font-weight:700;cursor:pointer;padding:4px 4px;">
             How it works ↗
           </button>
@@ -96,17 +96,24 @@ export function renderHeader(state, { onModeChange, onAboutClick, onLogoClick })
       `}
     </header>
 
-    <!-- SYNCHRONIZED STATE PILL STRIP -->
-    <div class="state-indicator-strip">
+    <!-- SYNCHRONIZED STATE PILL STRIP WITH PORTAL SWITCHER -->
+    <div class="state-indicator-strip" style="display:flex;justify-content:space-between;align-items:center;">
       <div style="display:flex;align-items:center;gap:6px;">
-        <span style="font-weight:700;font-size:10px;text-transform:uppercase;color:var(--text-tertiary);">Active State:</span>
-        <span class="state-badge ${badgeClass}">
-          <span class="state-dot"></span>
-          ${badgeText}
+        <span style="font-weight:700;font-size:10px;text-transform:uppercase;color:var(--text-tertiary);">Portal:</span>
+        <span class="state-badge ${isDriver ? 'enroute' : 'idle'}" style="font-weight:800;">
+          ${isDriver ? `🚗 Pilot Console (${state.driver?.name || 'Pilot'})` : '🐰 Passenger Booking Portal'}
         </span>
       </div>
-      <div style="font-size:11px;color:var(--text-tertiary);">
-        ${isDriver ? 'Camry Pilot Node' : 'Atlanta Nightlife VIP'}
+      <div style="display:flex;gap:6px;align-items:center;">
+        ${isDriver ? `
+          <a href="/" style="font-size:10.5px;color:#38bdf8;font-weight:700;text-decoration:none;background:#0c1c2e;padding:3px 8px;border-radius:6px;border:1px solid rgba(56,189,248,0.3);">
+            ← Rider Portal
+          </a>
+        ` : `
+          <a href="/driver" style="font-size:10.5px;color:#ff70ba;font-weight:700;text-decoration:none;background:#180b2a;padding:3px 8px;border-radius:6px;border:1px solid rgba(255,42,141,0.3);">
+            🚗 Pilot Console →
+          </a>
+        `}
       </div>
     </div>
 

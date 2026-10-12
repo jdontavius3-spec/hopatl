@@ -98,16 +98,54 @@ class Store {
     this.sse = null;
     this.state = this._loadState();
 
-    // URL is strictly authoritative for activeMode: riders always get rider mode, only /driver gets driver mode
+    // URL is strictly authoritative for activeMode and dedicated pilot portals
     if (typeof window !== 'undefined' && window.location) {
-      const isExplicitDriver = window.location.pathname.startsWith('/driver') || 
-                               new URLSearchParams(window.location.search).get('mode') === 'driver';
+      const path = window.location.pathname.toLowerCase();
+      const params = new URLSearchParams(window.location.search);
+      const isExplicitDriver = path.startsWith('/driver') || 
+                               path.startsWith('/pilot') || 
+                               path.startsWith('/rocko') || 
+                               path.startsWith('/dohntay') || 
+                               params.get('mode') === 'driver';
       this.state.activeMode = isExplicitDriver ? 'driver' : 'rider';
 
+      const pilotParam = params.get('pilot') || params.get('driver');
+      if (path.includes('rocko') || pilotParam === 'rocko' || pilotParam === 'driver_2') {
+        const rocko = MOCK_DRIVERS.find(d => d.id === 'driver_2');
+        if (rocko) {
+          this.state.selectedDriverId = rocko.id;
+          this.state.driver = rocko;
+          this.state.driverCashTag = rocko.cashTag;
+          this.state.driverZellePhone = rocko.zellePhone;
+          this.state.driverZelleFormatted = rocko.zelleFormatted;
+        }
+      } else if (path.includes('dohntay') || pilotParam === 'dohntay' || pilotParam === 'driver_1') {
+        const dohntay = MOCK_DRIVERS.find(d => d.id === 'driver_1');
+        if (dohntay) {
+          this.state.selectedDriverId = dohntay.id;
+          this.state.driver = dohntay;
+          this.state.driverCashTag = dohntay.cashTag;
+          this.state.driverZellePhone = dohntay.zellePhone;
+          this.state.driverZelleFormatted = dohntay.zelleFormatted;
+        }
+      }
+
       window.addEventListener('popstate', () => {
-        const isDriver = window.location.pathname.startsWith('/driver') || 
-                         new URLSearchParams(window.location.search).get('mode') === 'driver';
+        const curPath = window.location.pathname.toLowerCase();
+        const curParams = new URLSearchParams(window.location.search);
+        const isDriver = curPath.startsWith('/driver') || 
+                         curPath.startsWith('/pilot') || 
+                         curPath.startsWith('/rocko') || 
+                         curPath.startsWith('/dohntay') || 
+                         curParams.get('mode') === 'driver';
         this.setState({ activeMode: isDriver ? 'driver' : 'rider' });
+
+        const curPilot = curParams.get('pilot') || curParams.get('driver');
+        if (curPath.includes('rocko') || curPilot === 'rocko' || curPilot === 'driver_2') {
+          this.selectDriver('driver_2');
+        } else if (curPath.includes('dohntay') || curPilot === 'dohntay' || curPilot === 'driver_1') {
+          this.selectDriver('driver_1');
+        }
       });
     }
 
@@ -223,10 +261,36 @@ class Store {
           riders: parsed.riders || 1,
         });
 
-        // Always enforce URL authority for activeMode
-        const isExplicitDriver = typeof window !== 'undefined' && window.location && 
-          (window.location.pathname.startsWith('/driver') || new URLSearchParams(window.location.search).get('mode') === 'driver');
+        // Always enforce URL authority for activeMode and pilot portal
+        const path = typeof window !== 'undefined' && window.location ? window.location.pathname.toLowerCase() : '';
+        const params = typeof window !== 'undefined' && window.location ? new URLSearchParams(window.location.search) : null;
+        const isExplicitDriver = path.startsWith('/driver') || 
+                                 path.startsWith('/pilot') || 
+                                 path.startsWith('/rocko') || 
+                                 path.startsWith('/dohntay') || 
+                                 (params && params.get('mode') === 'driver');
         parsed.activeMode = isExplicitDriver ? 'driver' : 'rider';
+
+        const pilotParam = params ? (params.get('pilot') || params.get('driver')) : null;
+        if (path.includes('rocko') || pilotParam === 'rocko' || pilotParam === 'driver_2') {
+          const rocko = MOCK_DRIVERS.find(d => d.id === 'driver_2');
+          if (rocko) {
+            parsed.selectedDriverId = rocko.id;
+            parsed.driver = rocko;
+            parsed.driverCashTag = rocko.cashTag;
+            parsed.driverZellePhone = rocko.zellePhone;
+            parsed.driverZelleFormatted = rocko.zelleFormatted;
+          }
+        } else if (path.includes('dohntay') || pilotParam === 'dohntay' || pilotParam === 'driver_1') {
+          const dohntay = MOCK_DRIVERS.find(d => d.id === 'driver_1');
+          if (dohntay) {
+            parsed.selectedDriverId = dohntay.id;
+            parsed.driver = dohntay;
+            parsed.driverCashTag = dohntay.cashTag;
+            parsed.driverZellePhone = dohntay.zellePhone;
+            parsed.driverZelleFormatted = dohntay.zelleFormatted;
+          }
+        }
 
         return { ...DEFAULT_STATE, ...parsed };
       }

@@ -34,6 +34,38 @@ export function renderLanding(state, { onStartBooking }) {
         </div>
       </div>
 
+      <!-- DEDICATED PILOT PORTALS CARD -->
+      <div class="card" style="background:#090514;border:1.5px solid rgba(255,42,141,0.3);border-radius:var(--radius-md);padding:14px;margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:18px;">🚗</span>
+            <strong style="font-size:13.5px;color:#ffffff;">Dedicated Pilot Portals</strong>
+          </div>
+          <span style="font-size:10.5px;background:#064e3b;color:#34d399;font-weight:800;padding:2px 8px;border-radius:10px;">2 Pilots Online</span>
+        </div>
+        <p style="font-size:12px;color:#cbd5e1;margin:0 0 12px;line-height:1.5;">
+          Direct shift consoles with in-car telemetry, turn-by-turn navigation deep links, and instant Cash App payouts:
+        </p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <a href="/driver/dohntay" class="btn-secondary" style="background:#130a24;border:1.5px solid var(--primary);color:#ffffff;text-decoration:none;padding:12px;border-radius:10px;display:flex;flex-direction:column;gap:3px;text-align:left;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-weight:900;font-size:14px;color:#ffffff;">Dohntay's Portal</span>
+              <span style="font-size:14px;">🐰</span>
+            </div>
+            <span style="font-size:12px;color:#00d632;font-weight:800;">$2243Dohntay</span>
+            <span style="font-size:10.5px;color:#94a3b8;">Camry Hybrid · ATL-PILOT</span>
+          </a>
+          <a href="/driver/rocko" class="btn-secondary" style="background:#130a24;border:1.5px solid #a855f7;color:#ffffff;text-decoration:none;padding:12px;border-radius:10px;display:flex;flex-direction:column;gap:3px;text-align:left;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-weight:900;font-size:14px;color:#ffffff;">Rocko's Portal</span>
+              <span style="font-size:14px;">🚗</span>
+            </div>
+            <span style="font-size:12px;color:#00d632;font-weight:800;">$chadowens46</span>
+            <span style="font-size:10.5px;color:#94a3b8;">Accord Sport · ATL-ROCKO</span>
+          </a>
+        </div>
+      </div>
+
       <!-- PRODUCT PROBLEM VS SOLUTION CARD -->
       <div class="card" style="margin-bottom:24px;">
         <h2 style="font-size:13px;font-weight:800;text-transform:uppercase;color:var(--text-tertiary);letter-spacing:0.06em;margin-bottom:14px;">
