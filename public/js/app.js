@@ -505,7 +505,60 @@ function bindEvents() {
     btnPlanAnother.onclick = () => store.resetTrip();
   }
 
-  // Driver View Actions
+  // 1-Click Landing Test Simulation for Rocko
+  const btnLandingTestRocko = document.getElementById('btnLandingTestRocko');
+  if (btnLandingTestRocko) {
+    btnLandingTestRocko.onclick = () => {
+      store.selectDriver('driver_2');
+      store.simulateIncomingRequest('driver_2');
+      store.setMode('driver');
+    };
+  }
+
+  // Driver View Actions & Test Simulator
+  const btnSimulateRideRequest = document.getElementById('btnSimulateRideRequest');
+  if (btnSimulateRideRequest) {
+    btnSimulateRideRequest.onclick = () => {
+      const drvId = store.getState().selectedDriverId || 'driver_2';
+      store.simulateIncomingRequest(drvId);
+    };
+  }
+
+  const btnSimulateRequestDock = document.getElementById('btnSimulateRequestDock');
+  if (btnSimulateRequestDock) {
+    btnSimulateRequestDock.onclick = () => {
+      const drvId = store.getState().selectedDriverId || 'driver_2';
+      store.simulateIncomingRequest(drvId);
+    };
+  }
+
+  const btnAcceptIncomingRequest = document.getElementById('btnAcceptIncomingRequest');
+  if (btnAcceptIncomingRequest) {
+    btnAcceptIncomingRequest.onclick = () => {
+      playCashAppChime();
+      store.advanceTripState();
+    };
+  }
+
+  const btnAcceptIncomingRequestAction = document.getElementById('btnAcceptIncomingRequestAction');
+  if (btnAcceptIncomingRequestAction) {
+    btnAcceptIncomingRequestAction.onclick = () => {
+      playCashAppChime();
+      store.advanceTripState();
+    };
+  }
+
+  const btnAutoAdvanceTripDock = document.getElementById('btnAutoAdvanceTripDock');
+  if (btnAutoAdvanceTripDock) {
+    btnAutoAdvanceTripDock.onclick = () => {
+      const state = store.getState();
+      if (state.tripState === TRIP_STATES.RETURN_LEG || state.tripState === TRIP_STATES.MATCHING) {
+        playCashAppChime();
+      }
+      store.advanceTripState();
+    };
+  }
+
   const btnDriverAcceptDemo = document.getElementById('btnDriverAcceptDemo');
   if (btnDriverAcceptDemo) {
     btnDriverAcceptDemo.onclick = () => store.confirmBooking();

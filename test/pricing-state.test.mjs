@@ -6,6 +6,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { calculateEstimate, PRICING_CONFIG, formatCurrency } from '../public/js/pricing.js';
+import { Store, TRIP_STATES } from '../public/js/store.js';
 import { 
   PRESET_LOCATIONS, 
   PRESET_DESTINATIONS, 
@@ -388,6 +389,83 @@ describe('Zelle Instant Bank Transfer & Pilot Driver Verification', () => {
     assert.equal(est.driverPayout.totalEarnings, Math.round((est.driverPayout.transitEarnings + est.driverPayout.waitEarnings) * 100) / 100);
   });
 });
+
+describe('Rocko Pilot Simulation & Test Run Verification', () => {
+  test('seedTestRun correctly seeds a 2-hop nightlife run for Rocko ($chadowens46)', () => {
+    const store = new Store();
+    store.seedTestRun('driver_2', TRIP_STATES.DRIVER_ACCEPTED);
+    const state = store.getState();
+
+    assert.equal(state.driver.name, 'Rocko');
+    assert.equal(state.driver.cashTag, '$chadowens46');
+    assert.equal(state.driverCashTag, '$chadowens46');
+    assert.equal(state.selectedDriverId, 'driver_2');
+    assert.equal(state.tripState, TRIP_STATES.DRIVER_ACCEPTED);
+    assert.equal(state.pickup, 'Loews Atlanta Hotel (Midtown)');
+    assert.equal(state.stops.length, 2);
+    assert.equal(state.stops[0].name, 'Ponce City Market (Old Fourth Ward)');
+    assert.equal(state.stops[1].name, 'Clermont Lounge (Ponce de Leon)');
+    assert.equal(state.pricing.driverPayout.totalEarnings, 22.00);
+    assert.equal(state.riderCashTag, '$alexis_in_atl');
+    assert.equal(state.cashAppAuthorized, true);
+  });
+
+  test('simulateIncomingRequest creates an actionable matching request for Rocko', () => {
+    const store = new Store();
+    store.simulateIncomingRequest('driver_2');
+    const state = store.getState();
+
+    assert.equal(state.tripState, TRIP_STATES.MATCHING);
+    assert.equal(state.driver.name, 'Rocko');
+    assert.equal(state.driver.cashTag, '$chadowens46');
+    assert.equal(state.selectedDriverId, 'driver_2');
+    assert.ok(state.notificationMessage.includes('Rocko'));
+    assert.ok(state.notificationMessage.includes('22.00'));
+    assert.equal(state.pricing.driverPayout.totalEarnings, 22.00);
+  });
+
+  test('advancing state moves from MATCHING through full 2-hop run to COMPLETED with Rocko payout', () => {
+    const store = new Store();
+    store.simulateIncomingRequest('driver_2');
+    assert.equal(store.getState().tripState, TRIP_STATES.MATCHING);
+
+    const initialWallet = store.getState().driverWalletBalance;
+
+    // 1. Accept request -> DRIVER_ACCEPTED
+    store.advanceTripState();
+    assert.equal(store.getState().tripState, TRIP_STATES.DRIVER_ACCEPTED);
+
+    // 2. Arrived pickup -> OUTBOUND to Stop 1
+    store.advanceTripState();
+    assert.equal(store.getState().tripState, TRIP_STATES.OUTBOUND);
+    assert.equal(store.getState().currentStopIndex, 0);
+
+    // 3. Arrived at Stop 1 (Ponce City Market) -> WAITING
+    store.advanceTripState();
+    assert.equal(store.getState().tripState, TRIP_STATES.WAITING);
+
+    // 4. Rider ready / Hop back in -> OUTBOUND to Stop 2 (Clermont Lounge)
+    store.advanceTripState();
+    assert.equal(store.getState().tripState, TRIP_STATES.OUTBOUND);
+    assert.equal(store.getState().currentStopIndex, 1);
+
+    // 5. Arrived at Stop 2 (Clermont Lounge) -> WAITING
+    store.advanceTripState();
+    assert.equal(store.getState().tripState, TRIP_STATES.WAITING);
+
+    // 6. Rider ready -> RETURN_LEG to Loews Atlanta Hotel
+    store.advanceTripState();
+    assert.equal(store.getState().tripState, TRIP_STATES.RETURN_LEG);
+
+    // 7. Complete trip -> COMPLETED & Payout added to wallet
+    store.advanceTripState();
+    assert.equal(store.getState().tripState, TRIP_STATES.COMPLETED);
+    assert.equal(store.getState().driverWalletBalance, Math.round((initialWallet + 22.00) * 100) / 100);
+    assert.ok(store.getState().notificationMessage.includes('22.00'));
+    assert.ok(store.getState().notificationMessage.includes('$chadowens46'));
+  });
+});
+
 
 
 

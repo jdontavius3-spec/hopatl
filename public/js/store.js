@@ -130,6 +130,20 @@ class Store {
         }
       }
 
+      // Check for automatic test flight / simulation parameters in URL (?simulate=1, ?simulate=rocko, ?test=1)
+      const testParam = params.get('test') || params.get('simulate') || params.get('demo');
+      if (testParam) {
+        const isRocko = path.includes('rocko') || pilotParam === 'rocko' || pilotParam === 'driver_2' || testParam === 'rocko' || (!path.includes('dohntay') && pilotParam !== 'dohntay' && pilotParam !== 'driver_1');
+        const targetDriver = isRocko ? 'driver_2' : 'driver_1';
+        if (testParam === 'accepted' || testParam === 'active') {
+          this.seedTestRun(targetDriver, TRIP_STATES.DRIVER_ACCEPTED);
+        } else if (testParam === 'waiting') {
+          this.seedTestRun(targetDriver, TRIP_STATES.WAITING);
+        } else {
+          this.simulateIncomingRequest(targetDriver);
+        }
+      }
+
       window.addEventListener('popstate', () => {
         const curPath = window.location.pathname.toLowerCase();
         const curParams = new URLSearchParams(window.location.search);
@@ -234,6 +248,7 @@ class Store {
   }
 
   _loadState() {
+    if (typeof localStorage === 'undefined') return { ...DEFAULT_STATE };
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
@@ -301,6 +316,7 @@ class Store {
   }
 
   _saveState() {
+    if (typeof localStorage === 'undefined') return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
     } catch (e) {
@@ -644,6 +660,132 @@ class Store {
     }, 1200);
   }
 
+  // Pre-seed and simulate a realistic nightlife run for Rocko or Dohntay
+  seedTestRun(driverId = 'driver_2', targetState = TRIP_STATES.DRIVER_ACCEPTED) {
+    const drv = MOCK_DRIVERS.find(d => d.id === driverId) || MOCK_DRIVERS[1];
+    const pickup = 'Loews Atlanta Hotel (Midtown)';
+    const stops = [
+      {
+        id: 'stop_1',
+        name: 'Ponce City Market (Old Fourth Ward)',
+        category: 'Dining & Drinks',
+        waitMinutes: 20,
+        lat: 33.7719,
+        lng: -84.3665,
+      },
+      {
+        id: 'stop_2',
+        name: 'Clermont Lounge (Ponce de Leon)',
+        category: 'Historic Dive & Lounge',
+        waitMinutes: 30,
+        lat: 33.7733,
+        lng: -84.3597,
+      }
+    ];
+
+    const pricing = calculateEstimate({
+      pickup,
+      stops,
+      extendedMinutes: 0,
+      overtimeMinutes: 0,
+      riders: 2,
+    });
+
+    const holdWithBuffer = Math.round((pricing.totalEstimate + 15.00) * 100) / 100;
+
+    this.setState({
+      selectedDriverId: drv.id,
+      driver: drv,
+      driverCashTag: drv.cashTag,
+      driverZellePhone: drv.zellePhone,
+      driverZelleFormatted: drv.zelleFormatted,
+      pickup,
+      pickupCoords: { lat: 33.7844, lng: -84.3837 },
+      stops,
+      currentStopIndex: 0,
+      odometerMiles: targetState === TRIP_STATES.DRIVER_ACCEPTED ? 0.0 : 2.4,
+      destination: stops[0].name,
+      category: stops[0].category,
+      waitMinutes: 20,
+      extendedMinutes: 0,
+      riders: 2,
+      pricing,
+      paymentMethod: 'cashapp',
+      riderCashTag: '$alexis_in_atl',
+      cashAppAuthorized: true,
+      cashAppHoldAmount: holdWithBuffer,
+      tripStartTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      tripState: targetState,
+      waitTimerRemaining: 20 * 60,
+      waitTimerActive: targetState === TRIP_STATES.WAITING,
+      notificationMessage: `🧪 Test Run Active with Pilot ${drv.name} (${drv.vehicle}). Payout: $${pricing.driverPayout.totalEarnings.toFixed(2)} to ${drv.cashTag}.`,
+    });
+
+    if (targetState === TRIP_STATES.WAITING) {
+      this._startWaitTimer();
+    }
+  }
+
+  // Simulate an incoming nightlife booking request for the active driver
+  simulateIncomingRequest(driverId = 'driver_2') {
+    const drv = MOCK_DRIVERS.find(d => d.id === driverId) || MOCK_DRIVERS[1];
+    const pickup = 'Loews Atlanta Hotel (Midtown)';
+    const stops = [
+      {
+        id: 'stop_1',
+        name: 'Ponce City Market (Old Fourth Ward)',
+        category: 'Dining & Drinks',
+        waitMinutes: 20,
+        lat: 33.7719,
+        lng: -84.3665,
+      },
+      {
+        id: 'stop_2',
+        name: 'Clermont Lounge (Ponce de Leon)',
+        category: 'Historic Dive & Lounge',
+        waitMinutes: 30,
+        lat: 33.7733,
+        lng: -84.3597,
+      }
+    ];
+
+    const pricing = calculateEstimate({
+      pickup,
+      stops,
+      extendedMinutes: 0,
+      overtimeMinutes: 0,
+      riders: 2,
+    });
+
+    const holdWithBuffer = Math.round((pricing.totalEstimate + 15.00) * 100) / 100;
+
+    this.setState({
+      selectedDriverId: drv.id,
+      driver: drv,
+      driverCashTag: drv.cashTag,
+      driverZellePhone: drv.zellePhone,
+      driverZelleFormatted: drv.zelleFormatted,
+      pickup,
+      pickupCoords: { lat: 33.7844, lng: -84.3837 },
+      stops,
+      currentStopIndex: 0,
+      odometerMiles: 0.0,
+      destination: stops[0].name,
+      category: stops[0].category,
+      waitMinutes: 20,
+      extendedMinutes: 0,
+      riders: 2,
+      pricing,
+      paymentMethod: 'cashapp',
+      riderCashTag: '$alexis_in_atl',
+      cashAppAuthorized: true,
+      cashAppHoldAmount: holdWithBuffer,
+      tripStartTime: null,
+      tripState: TRIP_STATES.MATCHING,
+      notificationMessage: `🚨 Incoming Run Request for ${drv.name}! Alexis requested a 2-hop nightlife run ($${pricing.driverPayout.totalEarnings.toFixed(2)} pilot payout).`,
+    });
+  }
+
   // Advance trip state across multi-stops (Rider or Driver demo trigger)
   advanceTripState() {
     const current = this.state.tripState;
@@ -652,6 +794,15 @@ class Store {
     const activeStop = stops[curIdx] || stops[0];
 
     switch (current) {
+      case TRIP_STATES.MATCHING:
+      case TRIP_STATES.IDLE:
+        this.setState({
+          tripState: TRIP_STATES.DRIVER_ACCEPTED,
+          tripStartTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          notificationMessage: `Ride accepted! Pilot ${this.state.driver.name} is heading to pickup at ${this.state.pickup}.`,
+        });
+        break;
+
       case TRIP_STATES.DRIVER_ACCEPTED:
         this.setState({
           tripState: TRIP_STATES.OUTBOUND,
@@ -907,4 +1058,5 @@ class Store {
   }
 }
 
+export { Store };
 export const store = new Store();

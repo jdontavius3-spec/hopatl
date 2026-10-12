@@ -64,6 +64,10 @@ export function renderLanding(state, { onStartBooking }) {
             <span style="font-size:10.5px;color:#94a3b8;">Accord Sport · ATL-ROCKO</span>
           </a>
         </div>
+        <button id="btnLandingTestRocko" style="margin-top:10px;width:100%;background:linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);color:#ffffff;border:none;padding:11px 14px;border-radius:8px;font-size:12.5px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 14px rgba(168,85,247,0.35);">
+          <span>⚡ Simulate In-Car Ride Request for Rocko ($22.00 Payout)</span>
+          <span style="font-size:14px;">→</span>
+        </button>
       </div>
 
       <!-- PRODUCT PROBLEM VS SOLUTION CARD -->

@@ -23,6 +23,7 @@ export function renderDriverView(state, { onAcceptRequest, onAdvanceDriverState,
   const nextStop = !isFinalStop ? stops[curIdx + 1] : null;
 
   const isIdle = current === TRIP_STATES.IDLE || current === TRIP_STATES.BOOKING || current === TRIP_STATES.REVIEW;
+  const isMatching = current === TRIP_STATES.MATCHING;
   const isAccepted = current === TRIP_STATES.DRIVER_ACCEPTED;
   const isOutbound = current === TRIP_STATES.OUTBOUND;
   const isWaiting = current === TRIP_STATES.WAITING;
@@ -103,6 +104,52 @@ export function renderDriverView(state, { onAcceptRequest, onAdvanceDriverState,
           </div>
         </div>
       </div>
+
+      <!-- INCOMING RIDE REQUEST ALERT CARD (MATCHING STATE) -->
+      ${isMatching ? `
+        <div style="background:linear-gradient(135deg, #1f0d38 0%, #2b0c36 100%);border:2px solid #ff2a8d;border-radius:var(--radius-md);padding:14px;box-shadow:0 0 28px rgba(255,42,141,0.5);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:22px;">🚨</span>
+              <div>
+                <strong style="color:#ff2a8d;font-size:14px;text-transform:uppercase;letter-spacing:0.04em;">Incoming VIP Nightlife Run</strong>
+                <div style="font-size:11.5px;color:#cbd5e1;margin-top:1px;">Alexis (${state.riderCashTag || '$alexis_in_atl'}) · 2 Passengers</div>
+              </div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:24px;font-weight:900;color:#00d632;line-height:1;">${p.formatted.totalDriverEarnings}</div>
+              <div style="font-size:10px;color:#94a3b8;font-weight:800;text-transform:uppercase;">Pilot Payout</div>
+            </div>
+          </div>
+
+          <div style="background:rgba(0,0,0,0.45);border:1px solid rgba(255,42,141,0.25);border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;display:flex;flex-direction:column;gap:5px;">
+            <div style="display:flex;align-items:center;gap:6px;color:#e2e8f0;">
+              <span style="color:#38bdf8;">📍</span>
+              <span>Pickup: <strong>${state.pickup}</strong></span>
+            </div>
+            ${stops.map((s, idx) => `
+              <div style="display:flex;align-items:center;gap:6px;color:#e2e8f0;">
+                <span style="color:#ff2a8d;">[Hop ${idx + 1}]</span>
+                <span>${s.name} (<strong>${s.waitMinutes}m curbside wait</strong>)</span>
+              </div>
+            `).join('')}
+            <div style="display:flex;align-items:center;gap:6px;color:#e2e8f0;">
+              <span style="color:#34d399;">↺</span>
+              <span>Return: <strong>${state.pickup}</strong></span>
+            </div>
+            <div style="margin-top:4px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.1);display:flex;justify-content:space-between;color:#94a3b8;font-size:11px;">
+              <span>Transit: $${p.driverPayout.transitEarnings.toFixed(2)}</span>
+              <span style="color:#00d632;font-weight:800;">Wait Pay: $${p.driverPayout.waitEarnings.toFixed(2)} ($17.85/hr)</span>
+              <span>Deposit to: <strong style="color:#ffffff;">${state.driverCashTag || driver.cashTag}</strong></span>
+            </div>
+          </div>
+
+          <button class="btn-primary btn-in-car" id="btnAcceptIncomingRequest" style="background:linear-gradient(135deg, #00d632 0%, #059669 100%);color:#000000;font-weight:900;font-size:16px;box-shadow:0 0 22px rgba(0,214,50,0.5);width:100%;">
+            <span>ACCEPT RUN · LOCK IN ${p.formatted.totalDriverEarnings} 🐰</span>
+            <span style="font-size:18px;">→</span>
+          </button>
+        </div>
+      ` : ''}
 
       <!-- ZELLE TRIP ALERT (WHEN ACTIVE) -->
       ${state.paymentMethod === 'zelle' ? `
@@ -287,10 +334,20 @@ export function renderDriverView(state, { onAcceptRequest, onAdvanceDriverState,
 
       <!-- 6. HIGH-VISIBILITY ACTION BUTTONS (56PX+ IN-CAR TAP TARGETS) -->
       <div style="margin-top:6px;display:flex;flex-direction:column;gap:10px;">
-        ${isIdle ? `
-          <button class="btn-primary btn-in-car" id="btnDriverAcceptDemo">
-            <span>Claim Nightlife Run Request 🐰</span>
+        ${isMatching ? `
+          <button class="btn-primary btn-in-car" id="btnAcceptIncomingRequestAction" style="background:linear-gradient(135deg, #00d632 0%, #059669 100%);color:#000000;box-shadow:0 6px 24px rgba(0,214,50,0.5);">
+            <span>Claim & Accept Run (${p.formatted.totalDriverEarnings} to ${driver.cashTag}) 🐰</span>
             <span style="font-size:18px;">→</span>
+          </button>
+        ` : ''}
+
+        ${isIdle ? `
+          <button class="btn-primary btn-in-car" id="btnSimulateRideRequest" style="background:linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);box-shadow:0 6px 24px rgba(168,85,247,0.45);">
+            <span>⚡ Simulate Incoming Request for ${driver.name} (${p.formatted.totalDriverEarnings}) 🐰</span>
+            <span style="font-size:18px;">→</span>
+          </button>
+          <button class="btn-secondary" id="btnDriverAcceptDemo" style="background:#130a24;border-color:rgba(255,42,141,0.4);color:#ffffff;min-height:48px;font-size:13.5px;font-weight:700;border-radius:12px;">
+            Direct Start Nightlife Run (Skip Matching) →
           </button>
         ` : ''}
 
@@ -376,6 +433,25 @@ export function renderDriverView(state, { onAcceptRequest, onAdvanceDriverState,
             Reset & Test Another Booking
           </button>
         ` : ''}
+
+        <!-- 7. PILOT TEST FLIGHT SIMULATOR DOCK -->
+        <div style="background:#0c0618;border:1.5px dashed rgba(168,85,247,0.5);border-radius:var(--radius-md);padding:12px;margin-top:6px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-size:15px;">🧪</span>
+              <span style="font-size:12px;font-weight:900;color:#c084fc;text-transform:uppercase;letter-spacing:0.05em;">Pilot Test Flight Dock</span>
+            </div>
+            <span style="font-size:11px;color:#94a3b8;">Testing Pilot: <strong style="color:#ffffff;">${driver.name}</strong></span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <button type="button" id="btnSimulateRequestDock" style="background:#1e1035;border:1.5px solid #a855f7;color:#ffffff;padding:10px;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+              <span>⚡ Simulate Request</span>
+            </button>
+            <button type="button" id="btnAutoAdvanceTripDock" style="background:#0e1e38;border:1.5px solid #38bdf8;color:#ffffff;padding:10px;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+              <span>⏩ Advance Leg</span>
+            </button>
+          </div>
+        </div>
 
         <!-- SWITCH BACK TO RIDER MODE -->
         <button class="btn-secondary" id="btnBackToRider" style="background:transparent;color:#94a3b8;border-color:#334155;min-height:48px;font-size:13.5px;font-weight:700;border-radius:12px;margin-top:2px;">
