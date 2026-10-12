@@ -4,11 +4,15 @@
  * while bypassing all /api/* dynamic state and telemetry endpoints.
  */
 
-const CACHE_NAME = 'wait-return-shell-v5';
+const CACHE_NAME = 'wait-return-shell-v6';
 
 const STATIC_ASSETS = [
   '/',
   '/driver',
+  '/driver/rocko',
+  '/driver/dohntay',
+  '/rocko',
+  '/dohntay',
   '/driver/manifest.json',
   '/index.html',
   '/css/styles.css',
