@@ -1,0 +1,21 @@
+{
+  "name": "trickhopper-demo",
+  "version": "1.0.0",
+  "description": "Closed proof-of-concept demo for shared rider and pilot GPS telemetry",
+  "main": "server.mjs",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node --watch server.mjs",
+    "test": "node --test test/live-gps.test.mjs",
+    "check": "node --test test/live-gps.test.mjs"
+  },
+  "keywords": [
+    "rideshare",
+    "wait-and-return",
+    "prototype",
+    "mobile-first"
+  ],
+  "license": "UNLICENSED",
+  "private": true
+}
