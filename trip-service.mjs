@@ -55,7 +55,7 @@ export async function handleRequest(req,res){
  res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','same-origin');
  const url=new URL(req.url,`http://${req.headers.host}`),p=url.pathname;
  shouldPersistResponse=req.method==='POST';
- if(access&&Date.now()>access.expires){shouldPersistResponse=true;state={...initialState(),notificationMessage:'This demo session expired. Start a new test request.'};shared=initialShared();access=null;routeQuotes.clear();tickets.clear()}
+ if(req.method==='POST'&&access&&Date.now()>access.expires){shouldPersistResponse=true;state={...initialState(),notificationMessage:'This demo session expired. Start a new test request.'};shared=initialShared();access=null;routeQuotes.clear();tickets.clear()}
  if(p==='/api/trip/events'&&req.method==='GET'){
   if(persistState)return send(res,410,{ok:false,error:'Long-lived event streams are unavailable on this host. Use the shared trip state feed.'});
   const ticket=url.searchParams.get('ticket'),key=ticket&&digest(ticket).toString('hex'),record=key&&tickets.get(key);if(!record||record.expires<Date.now()||!access||record.tripId!==access.tripId)return send(res,401,{ok:false,error:'Event stream ticket expired or invalid'});

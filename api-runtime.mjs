@@ -36,17 +36,25 @@ export default async function handler(req, res) {
   const lockToken = randomUUID();
   const deadline = Date.now() + LOCK_WAIT_MS;
   let locked = false;
+  const releaseLock = async () => {
+    if (!locked) return;
+    await command('EVAL', RELEASE_LOCK, 1, LOCK_KEY, lockToken);
+    locked = false;
+  };
   try {
-    while (!locked && Date.now() < deadline) {
-      locked = (await command('SET', LOCK_KEY, lockToken, 'NX', 'PX', LOCK_TTL_MS)) === 'OK';
-      if (!locked) await new Promise(resolve => setTimeout(resolve, 100));
+    if (req.method === 'POST') {
+      while (!locked && Date.now() < deadline) {
+        locked = (await command('SET', LOCK_KEY, lockToken, 'NX', 'PX', LOCK_TTL_MS)) === 'OK';
+        if (!locked) await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      if (!locked) return reply(res, 503, { ok: false, error: 'Trip service is busy. Please retry shortly.' });
     }
-    if (!locked) return reply(res, 503, { ok: false, error: 'Trip service is busy. Please retry shortly.' });
 
     const stored = await command('GET', STATE_KEY);
     if (stored) importPersistentState(JSON.parse(stored));
     setPersistenceCallback(async snapshot => {
       await command('SET', STATE_KEY, JSON.stringify(snapshot), 'EX', 60 * 60 * 12);
+      await releaseLock();
     });
 
     await handleRequest(req, res);
@@ -55,7 +63,7 @@ export default async function handler(req, res) {
   } finally {
     setPersistenceCallback(null);
     if (locked) {
-      try { await command('EVAL', RELEASE_LOCK, 1, LOCK_KEY, lockToken); } catch {}
+      try { await releaseLock(); } catch {}
     }
   }
 }
