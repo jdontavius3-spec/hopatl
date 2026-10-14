@@ -1,8 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { exportPersistentState, handleRequest, importPersistentState, setPersistenceCallback } from '../trip-service.mjs';
 
-const REST_URL = process.env.UPSTASH_REDIS_REST_URL?.replace(/\/$/, '');
-const REST_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+// Upstash's Vercel Marketplace integration provisions KV_REST_API_URL and
+// KV_REST_API_TOKEN. Keep the generic UPSTASH names as fallbacks for manual
+// deployments and local development.
+const REST_URL = (process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL)?.replace(/\/$/, '');
+const REST_TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 const STATE_KEY = 'trickhopper:demo:state:v1';
 const LOCK_KEY = 'trickhopper:demo:state-lock:v1';
 const LOCK_TTL_MS = 90_000;
