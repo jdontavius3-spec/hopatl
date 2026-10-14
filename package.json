@@ -2,7 +2,6 @@
   "name": "trickhopper-demo",
   "version": "1.0.0",
   "description": "Closed proof-of-concept demo for shared rider and pilot GPS telemetry",
-  "main": "trip-service.mjs",
   "type": "module",
   "scripts": {
     "start": "node trip-service.mjs",
