@@ -26,7 +26,10 @@ export function exportPersistentState(){return{state,shared,access,routeQuotes:[
 export function importPersistentState(value){state=value?.state||initialState();shared=value?.shared||initialShared();access=value?.access||null;routeQuotes.clear();for(const entry of value?.routeQuotes||[])routeQuotes.set(...entry);tickets.clear();for(const entry of value?.tickets||[])tickets.set(...entry);addressSelections.clear();for(const entry of value?.addressSelections||[])addressSelections.set(...entry)}
 export function setPersistenceCallback(callback){persistState=callback}
 function body(req,limit=16000){return new Promise((resolve,reject)=>{let raw='';req.on('data',chunk=>{raw+=chunk;if(raw.length>limit){reject(Error('Request too large'));req.destroy()}});req.on('end',()=>{try{resolve(JSON.parse(raw||'{}'))}catch{reject(Error('Invalid JSON'))}});req.on('error',reject)})}
-function sameOrigin(req){try{return new URL(req.headers.origin).host===req.headers.host}catch{return false}}
+function sameOrigin(req){
+ if(req.headers['x-trickhopper-client']==='native')return true;
+ try{return new URL(req.headers.origin).host===req.headers.host}catch{return false}
+}
 function authRole(req){const token=req.headers.authorization?.match(/^Bearer (.+)$/)?.[1];if(!token||!access||Date.now()>access.expires)return null;if(same(digest(token).toString('hex'),access.riderHash))return'rider';if(access.pilotHash&&same(digest(token).toString('hex'),access.pilotHash))return'pilot';return null}
 const fresh=role=>{const fix=shared.liveLocations[role],age=Date.now()-Date.parse(fix?.timestamp||'');return Boolean(shared.gpsActiveByRole[role]&&fix&&fix.accuracy<=100&&age>=-5000&&age<=30000)};
 const haversine=(a,b)=>{const rad=x=>x*Math.PI/180,dl=rad(b.lat-a.lat),dn=rad(b.lng-a.lng),v=Math.sin(dl/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dn/2)**2;return 3958.8*2*Math.atan2(Math.sqrt(v),Math.sqrt(1-v))};
