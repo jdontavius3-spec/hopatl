@@ -9,7 +9,8 @@
   "rewrites": [
     { "source": "/api/:group/:action", "destination": "/api/nested?__path=/api/:group/:action" },
     { "source": "/driver", "destination": "/driver/index.html" },
-    { "source": "/((?!api|css|js|icons|audio|manifest.json|driver|pilot|favicon.ico).*)", "destination": "/index.html" }
+    { "source": "/dispatch", "destination": "/dispatch/index.html" },
+    { "source": "/((?!api|css|js|icons|audio|manifest.json|driver|dispatch|pilot|favicon.ico).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
