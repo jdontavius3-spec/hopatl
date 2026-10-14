@@ -1344,6 +1344,101 @@ input, select, textarea, .input-field {
 .live-map{margin-top:12px}.live-map svg{display:block;width:100%;height:220px;margin-top:10px;background:linear-gradient(145deg,#0c1017,#111a22);border-radius:12px}
 .live-map .grid{fill:none;stroke:#ffffff12;stroke-width:.3}.live-map .track{fill:none;stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round}.live-map .track.rider{stroke:#78b7ff}.live-map .track.pilot{stroke:#8ce0bd}.live-map .dot.rider{fill:#78b7ff;stroke:#071019;stroke-width:1}.live-map .dot.pilot{fill:#8ce0bd;stroke:#071019;stroke-width:1}
 .legend{display:flex;gap:18px;margin:10px 0 0;font-size:12px;color:var(--text-secondary)}.legend span:first-child{color:#78b7ff}.legend span:last-child{color:#8ce0bd}.map-empty{height:130px;display:grid;place-items:center;text-align:center;color:var(--text-secondary);font-size:13px}.map-footnote{font-size:10px;color:var(--text-tertiary);margin-top:8px}.telemetry-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}.telemetry-stats>div{padding:10px;background:#ffffff08;border-radius:10px}.telemetry-stats b{display:block;font-size:15px}.telemetry-stats small{display:block;color:var(--text-tertiary);font-size:10px;margin-top:4px}.btn-primary:disabled{opacity:.45;cursor:not-allowed}
+
+/* Rideshare-style booking hierarchy: simple next step first, test internals on demand. */
+.rider-shell {
+  --border-light: rgba(209, 198, 235, .14);
+  --surface-card: #110b1d;
+  --surface-subtle: #1b1328;
+  --primary: #f52b91;
+  --primary-hover: #e61d82;
+  background: #0b0811;
+}
+.rider-shell .header-bar {
+  min-height: 64px;
+  border-bottom-color: rgba(209, 198, 235, .12);
+  background: rgba(11, 8, 17, .97);
+}
+.rider-shell .brand-mark { box-shadow: none; border: 0; }
+.rider-shell .brand-name { text-shadow: none; font-size: 16px; }
+.rider-shell .brand-tag { color: #c8bfd8; letter-spacing: .04em; font-size: 9px; }
+.rider-shell .footer-link {
+  border: 1px solid rgba(209,198,235,.18);
+  border-radius: 999px;
+  padding: 7px 12px;
+  color: #eee8f8;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 700;
+}
+.rider-shell .demo-banner { display:none; }
+.rider-shell .content-body { gap: 12px; padding-top: 14px; }
+.rider-shell .trip-stage-card { padding: 16px 18px !important; margin: 0; border-radius: 16px; background: #120d1c; box-shadow: none; }
+.rider-shell .trip-stage-card .page-title { font-size: 19px; margin: 5px 0 3px !important; }
+.rider-shell .trip-stage-card .page-subtitle { margin: 0; font-size: 12px; color: #c6bdd4; }
+.rider-shell .primary-flow { width: 100%; }
+.rider-shell .booking-card { margin: 0; padding: 18px; border-color: rgba(209,198,235,.13); border-radius: 18px; background: #15101e; box-shadow: 0 10px 32px rgba(0,0,0,.23); }
+.booking-step-label { display:flex; align-items:center; gap:9px; color:#d1c8df; font-size:12px; font-weight:750; }
+.booking-step-label span:first-child { display:grid; place-items:center; width:23px; height:23px; border-radius:50%; background:rgba(245,43,145,.16); color:#ff72b6; }
+.booking-title { margin:13px 0 4px; font-size:23px; line-height:1.2; letter-spacing:-.035em; }
+.booking-intro { margin:0 0 15px; color:#c6bdd4; font-size:13px; }
+.rider-shell .planner-origin { margin:12px 0; padding:12px; border-color:rgba(209,198,235,.13); border-radius:13px; background:#1b1525; }
+.planner-origin .eyebrow { color:#aaa0bb; font-size:9px; }
+.planner-origin strong { margin-top:2px; font-size:14px; }
+.planner-origin small { color:#aaa0bb; font-size:11px; }
+.rider-shell .live-pill { background:rgba(255,255,255,.08); color:#ddd4e9; font-size:9px; }
+.rider-shell .booking-action { min-height:52px; border-radius:12px; background:#f52b91; box-shadow:none; letter-spacing:0; font-weight:800; }
+.rider-shell .booking-action:hover { background:#e61d82; box-shadow:none; transform:none; }
+.booking-footnote { display:block; margin-top:11px; color:#aaa0bb; font-size:11px; line-height:1.45; }
+.rider-shell .cash-note { margin:10px 0 0; color:#aaa0bb; font-size:11px; line-height:1.45; }
+.rider-shell .destination-card { padding:18px; }
+.rider-shell .compact-origin { margin:12px 0 16px; }
+.rider-shell .hop-list { gap:12px; margin:14px 0; }
+.rider-shell .hop-card { padding:14px; border-color:rgba(209,198,235,.12); border-radius:14px; background:#1a1424; }
+.rider-shell .hop-heading { margin-bottom:10px; font-size:14px; }
+.rider-shell .destination-input { min-height:50px; padding:13px 14px; border:1px solid rgba(209,198,235,.2); border-radius:12px; background:#0e0a15; color:#fff; }
+.rider-shell .destination-input:focus { border-color:#f52b91; outline:2px solid rgba(245,43,145,.15); }
+.rider-shell .destination-input::placeholder { color:#91879f; }
+.rider-shell .address-search-hint { margin:7px 0; color:#aaa0bb; font-size:11px; }
+.rider-shell .address-search-button { width:auto; min-height:38px; padding:8px 12px; border-color:rgba(209,198,235,.17); background:#211a2c; color:#eee8f8; font-size:12px; }
+.rider-shell .address-results { margin-top:8px; overflow:hidden; border:1px solid rgba(209,198,235,.17); border-radius:12px; background:#100c18; }
+.rider-shell .address-result { padding:12px; border-bottom:1px solid rgba(209,198,235,.1); background:transparent; }
+.rider-shell .address-result:hover,.rider-shell .address-result:focus-visible { background:#21192d; }
+.rider-shell .selected-address { margin:10px 0; padding:10px 12px; border-radius:10px; background:rgba(16,185,129,.09); color:#d6f5e8; }
+.rider-shell .selected-address small { display:none; }
+.wait-choice { margin-top:17px; }
+.wait-choice-title { margin-bottom:9px; color:#f2edf8; font-size:13px; font-weight:750; }
+.rider-shell .wait-choice-buttons { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.rider-shell .wait-choice-button { min-height:52px; padding:8px; border:1px solid rgba(209,198,235,.17); border-radius:11px; background:#211a2c; color:#eee8f8; font-size:12px; }
+.rider-shell .wait-choice-button strong { display:block; margin-top:2px; color:#c8bfd8; font-size:11px; }
+.rider-shell .wait-choice-button.selected { border-color:#f52b91; background:rgba(245,43,145,.12); color:#fff; box-shadow:0 0 0 1px rgba(245,43,145,.2); }
+.rider-shell .wait-choice-button.selected strong { color:#ff8bc3; }
+.rider-shell .spot-picks { margin-top:15px; }
+.rider-shell .spot-pick-list { gap:7px; }
+.rider-shell .spot-pick { padding:7px 10px; border-color:rgba(209,198,235,.17); background:#211a2c; color:#eee8f8; font-size:11px; }
+.rider-shell .add-hop { border-color:rgba(245,43,145,.5); background:rgba(245,43,145,.06); color:#ff72b6; font-size:13px; }
+.rider-shell .planner-return { margin:14px 0; padding:12px; border-color:rgba(16,185,129,.2); background:rgba(16,185,129,.055); color:#7ee3ba; }
+.rider-shell .planner-return span { font-size:12px; }
+.rider-shell #build-route { width:100%; min-height:48px; border:1px solid rgba(209,198,235,.17); border-radius:12px; background:#211a2c; color:#f6f1fa; font-size:14px; }
+.rider-shell .route-quote-card { margin:14px 0; padding:15px; border-color:rgba(209,198,235,.15); border-radius:14px; background:#100c18; box-shadow:none; }
+.rider-shell .route-quote-card .cash-title { font-size:17px; }
+.rider-shell .route-quote-card .cash-note { font-size:10px; }
+.rider-shell .route-quote-card .fare-estimate { padding:12px; border-radius:12px; background:#1b1525; }
+.rider-shell .request-status-card { border-left:3px solid #f52b91; }
+.rider-shell .live-map { border-color:rgba(209,198,235,.14); background:#100c18; box-shadow:none; }
+.details-card { margin:0; }
+.details-card > summary { width:100%; padding:12px 14px; border:1px solid rgba(209,198,235,.13); border-radius:12px; background:#15101e; color:#c9c1d6; cursor:pointer; list-style:none; font-size:12px; font-weight:700; }
+.details-card > summary::-webkit-details-marker { display:none; }
+.details-card > summary::after { content:'＋'; float:right; color:#ff72b6; }
+.details-card[open] > summary::after { content:'−'; }
+.details-card .card { margin-top:8px !important; }
+.rider-shell .details-card:not([open]) { display:block; }
+.pilot-shell .content-body { gap:12px; }
+
+@media (max-width:480px) {
+  .rider-shell .content-body { padding:12px 12px max(20px, env(safe-area-inset-bottom, 0px)); }
+  .rider-shell .booking-title { font-size:21px; }
+}
 .request-status-card{margin:12px 0}.request-status-card strong{display:block;font-size:20px;margin:10px 0}
 .rate-card{margin:14px 0;border-color:rgba(120,183,255,.28)}.rate-grid{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 16px;margin:15px 0}.rate-grid span{font-size:13px;color:var(--text-secondary)}.rate-grid strong{text-align:right;font-size:13px;color:var(--text-primary)}
 .return-wait-card{margin-top:12px;border-color:rgba(140,224,189,.3)}.wait-segment{padding:13px 0;border-bottom:1px solid var(--border-light)}.wait-segment:last-of-type{border-bottom:0}.return-wait-timer{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:14px;margin:12px 0;border-radius:12px;background:#8ce0bd0d}.return-wait-timer strong{font:700 28px ui-monospace,SFMono-Regular,Menlo,monospace;color:#a7f3d0}.return-wait-timer span{font-size:12px;color:var(--text-secondary);text-align:right}
