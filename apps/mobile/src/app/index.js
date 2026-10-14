@@ -68,6 +68,8 @@ export default function HomeScreen() {
   const [places, setPlaces] = useState([{ query: '', waitMinutes: 15, addressId: null, selectedLabel: '', options: [], searching: false, searchedQuery: '' }]);
   const [quote, setQuote] = useState(null);
   const [passengerCount, setPassengerCount] = useState(1);
+  const [riderPhone, setRiderPhone] = useState('');
+  const [smsConsent, setSmsConsent] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [gpsAttempt, setGpsAttempt] = useState(0);
   const fixRef = useRef(null);
@@ -173,7 +175,7 @@ export default function HomeScreen() {
   }, [apiBase, places]);
 
   const selectRole = async nextRole => {
-    setError(''); setRole(nextRole); setTrip(null); setShared(null); setPilotRequest(null); setQuote(null);
+    setError(''); setRole(nextRole); setTrip(null); setShared(null); setPilotRequest(null); setQuote(null);setRiderPhone('');setSmsConsent(false);
     const saved = await SecureStore.getItemAsync(tokenKey(nextRole)).catch(() => null);
     setToken(saved || null);
   };
@@ -204,8 +206,10 @@ export default function HomeScreen() {
   const createRide = async () => {
     setWorking(true); setError('');
     try {
+      const digits=riderPhone.replace(/\D/g,'');if(!/^\+?[\d\s().-]+$/.test(riderPhone.trim())||![10,11].includes(digits.length)||(digits.length===11&&!digits.startsWith('1')))throw new Error('Enter a valid US mobile number for the pilot-acceptance text.');
+      if(!smsConsent)throw new Error('Agree to receive one SMS about this test ride before requesting.');
       if (!quote?.quoteId || !fixRef.current) throw new Error('Get a fresh route estimate before requesting a ride.');
-      const data = await request(apiBase, '/api/trip/create', { method: 'POST', body: { quoteId: quote.quoteId, initialFix: fixRef.current, passengerCount } });
+      const data = await request(apiBase, '/api/trip/create', { method: 'POST', body: { quoteId: quote.quoteId, initialFix: fixRef.current, passengerCount, riderPhone, smsConsent } });
       await SecureStore.setItemAsync(tokenKey('rider'), data.riderToken);
       setRole('rider'); setToken(data.riderToken); setTrip(data.state); setShared(data.shared); setQuote(null);
     } catch (problem) { setError(problem.message); }
@@ -231,7 +235,7 @@ export default function HomeScreen() {
     } catch (problem) { setError(problem.message); }
     finally { setWorking(false); }
   };
-  const leaveRole = () => { fixRef.current = null; setRole(null); setToken(null); setTrip(null); setShared(null); setPilotRequest(null); setFix(null); setGpsMessage('Location permission has not been requested.'); setError(''); };
+  const leaveRole = () => { fixRef.current = null; setRole(null); setToken(null); setTrip(null); setShared(null); setPilotRequest(null); setFix(null); setRiderPhone(''); setSmsConsent(false); setGpsMessage('Location permission has not been requested.'); setError(''); };
   const clearCompleted = async () => {
     if (role) await SecureStore.deleteItemAsync(tokenKey(role)).catch(() => {});
     leaveRole();
@@ -270,6 +274,7 @@ export default function HomeScreen() {
           {role === 'rider' && !token && (!trip || trip.tripState === 'COMPLETED') ? <>
             <Text style={styles.sectionTitle}>Origin</Text>
             <View style={styles.locationPanel}><Text style={styles.label}>LIVE PHONE LOCATION</Text><Text style={styles.copySmall}>Pickup coordinates come from GPS. Address search is only used for destinations.</Text><Text style={styles.coords}>{fmtCoords(fix)}</Text></View>
+            <View style={styles.locationPanel}><Text style={styles.label}>MOBILE NUMBER FOR RIDE CONFIRMATION</Text><TextInput value={riderPhone} onChangeText={setRiderPhone} style={styles.input} placeholder="(404) 555-0123" placeholderTextColor={colors.muted} keyboardType="phone-pad" autoComplete="tel" maxLength={24} /><Pressable accessibilityRole="checkbox" accessibilityState={{checked:smsConsent}} onPress={()=>setSmsConsent(value=>!value)} style={{flexDirection:'row',gap:10,alignItems:'flex-start',marginTop:10}}><Text style={{color:colors.pink,fontWeight:'900'}}>{smsConsent?'☑':'□'}</Text><Text style={styles.copySmall}>I agree to receive one text when the pilot accepts this test ride. Message and data rates may apply.</Text></Pressable></View>
             <View style={styles.rowBetween}><Text style={styles.sectionTitle}>Destinations</Text><Text style={styles.small}>{destinationCount} of 3</Text></View>
             {places.map((place, index) => <View key={index} style={styles.stopCard}>
               <Text style={styles.label}>HOP {index + 1}</Text>
