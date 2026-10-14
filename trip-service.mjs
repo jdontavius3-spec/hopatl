@@ -53,7 +53,7 @@ async function suggestAddressOptions(query){
 async function roadRoute(from,to){const target=new URL(`${ROUTER_ENDPOINT}/${from.lng},${from.lat};${to.lng},${to.lat}`);target.searchParams.set('overview','false');target.searchParams.set('steps','false');const response=await fetch(target,{headers:{'User-Agent':'TRICKHOPPER-local-prototype/1.0 (destination route estimate)'},signal:AbortSignal.timeout(12000)});if(!response.ok)throw Error(`Road router unavailable (HTTP ${response.status})`);const data=await response.json(),route=data.routes?.[0];if(data.code!=='Ok'||!route||!Number.isFinite(route.distance)||!Number.isFinite(route.duration))throw Error('No drivable road route was found between the selected points.');return{distanceMeters:route.distance,distanceMiles:route.distance/METERS_PER_MILE,durationSeconds:route.duration};}
 export async function handleRequest(req,res){
  res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','same-origin');
- const url=new URL(req.url,`http://${req.headers.host}`),p=url.pathname;
+ const url=new URL(req.url,`http://${req.headers.host}`),rewrittenPath=url.searchParams.get('__path'),p=rewrittenPath&&/^\/api\/[a-z0-9-]+\/[a-z0-9-]+$/.test(rewrittenPath)?rewrittenPath:url.pathname;
  shouldPersistResponse=req.method==='POST';
  if(req.method==='POST'&&access&&Date.now()>access.expires){shouldPersistResponse=true;state={...initialState(),notificationMessage:'This demo session expired. Start a new test request.'};shared=initialShared();access=null;routeQuotes.clear();tickets.clear()}
  if(p==='/api/trip/events'&&req.method==='GET'){
