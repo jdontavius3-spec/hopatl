@@ -557,6 +557,9 @@ input, select, textarea, .input-field {
 .btn-primary:active {
   transform: translateY(0);
 }
+.btn-primary:disabled { opacity: .72; cursor: wait; }
+.gps-waiting { margin: 12px 0 0; padding: 12px 14px; border-radius: 12px; background: rgba(168,85,247,.12); border: 1px solid rgba(168,85,247,.35); color: var(--text-secondary); font-size: 13px; line-height: 1.45; }
+.gps-inline-error { margin: 12px 0 0; padding: 12px 14px; border-radius: 12px; background: rgba(255,42,141,.1); border: 1px solid rgba(255,42,141,.4); color: #ffc2dc; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
 
 /* AUTOMOTIVE PILOT CONSOLE IN-CAR OPTIMIZATIONS */
 .btn-in-car {
