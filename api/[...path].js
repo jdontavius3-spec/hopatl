@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { exportPersistentState, handleRequest, importPersistentState, setPersistenceCallback } from '../server.mjs';
+import { exportPersistentState, handleRequest, importPersistentState, setPersistenceCallback } from '../trip-service.mjs';
 
 const REST_URL = process.env.UPSTASH_REDIS_REST_URL?.replace(/\/$/, '');
 const REST_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
