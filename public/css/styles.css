@@ -1471,8 +1471,18 @@ input, select, textarea, .input-field {
 
 @media (max-width:480px) {
   .rider-shell .header-bar { min-height:64px; }
-  .rider-shell .content-body { padding:12px 12px max(20px, env(safe-area-inset-bottom, 0px)); }
-  .rider-shell .booking-title { font-size:21px; }
+  .rider-shell .content-body { gap:8px; padding:8px 12px max(20px, env(safe-area-inset-bottom, 0px)); }
+  .rider-shell .trip-stage-card { padding:12px 14px !important; }
+  .rider-shell .trip-stage-card .page-title { font-size:17px; margin:2px 0 !important; }
+  .rider-shell .trip-stage-card .page-subtitle { font-size:11px; line-height:1.35; }
+  .rider-shell .booking-card { padding:14px; }
+  .rider-shell .booking-title { margin:9px 0 3px; font-size:19px; }
+  .rider-shell .booking-intro { margin-bottom:8px; font-size:12px; line-height:1.4; }
+  .rider-shell .planner-origin { margin:8px 0; padding:9px 10px; }
+  .rider-shell .planner-origin small { display:none; }
+  .rider-shell .cash-confirmation { margin:8px 0 !important; padding:10px !important; }
+  .rider-shell .cash-confirmation .destination-input { min-height:44px; margin:5px 0 0; padding:10px 12px; }
+  .rider-shell .cash-confirmation > label:last-child { margin-top:8px !important; font-size:12px !important; line-height:1.35 !important; }
 }
 .request-status-card{margin:12px 0}.request-status-card strong{display:block;font-size:20px;margin:10px 0}
 .rate-card{margin:14px 0;border-color:rgba(120,183,255,.28)}.rate-grid{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 16px;margin:15px 0}.rate-grid span{font-size:13px;color:var(--text-secondary)}.rate-grid strong{text-align:right;font-size:13px;color:var(--text-primary)}
