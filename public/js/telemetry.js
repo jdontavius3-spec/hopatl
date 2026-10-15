@@ -4,8 +4,8 @@ class Telemetry {
  startLiveGPS(role=store.getState().activeMode,onFirstFix=null){
   if(onFirstFix)this.afterFirstFix[role]=onFirstFix;
   if(this.watchIds[role]!=null)return;
-  if(!window.isSecureContext){store.setLocationStatus(role,false,'Live GPS requires a secure HTTPS page. Open the staging link directly in Safari or Chrome.');return}
-  if(!navigator.geolocation){store.setLocationStatus(role,false,'This browser cannot access device GPS. Open the staging link directly in Safari or Chrome, not inside an embedded preview.');return}
+  if(!window.isSecureContext){store.setLocationStatus(role,false,'Live GPS requires a secure HTTPS page. Open this site directly in Safari or Chrome.');return}
+  if(!navigator.geolocation){store.setLocationStatus(role,false,'This browser cannot access device GPS. Open this site directly in Safari or Chrome, not inside an embedded preview.');return}
   this.firstFixSent[role]=false;
   this.lastSentAt[role]=0;
   store.setLocationStatus(role,false,null);
