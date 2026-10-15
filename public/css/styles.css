@@ -81,7 +81,7 @@
 html, body {
   background-color: var(--bg-app);
   background-image: radial-gradient(circle at 50% 0%, #200b3b 0%, #080511 65%);
-  background-attachment: fixed;
+  background-attachment: scroll;
   color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   line-height: 1.5;
@@ -90,10 +90,13 @@ html, body {
   width: 100%;
   max-width: 100%;
   min-height: 100vh;
+  min-height: 100svh;
   min-height: 100dvh;
   -webkit-text-size-adjust: 100%;
-  touch-action: pan-y;
+  overscroll-behavior-x: none;
 }
+
+#app { width:100%; min-height:100vh; min-height:100svh; min-height:100dvh; }
 
 /* Global input lock: 16px prevents iOS Safari from auto-zooming and overfilling the screen */
 input, select, textarea, .input-field {
@@ -137,6 +140,7 @@ input, select, textarea, .input-field {
   max-width: 480px;
   margin: 0 auto;
   min-height: 100vh;
+  min-height: 100svh;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -1027,7 +1031,7 @@ input, select, textarea, .input-field {
     box-shadow: none;
   }
   .content-body {
-    padding: 16px 14px 24px;
+    padding: 16px 14px max(20px, calc(12px + env(safe-area-inset-bottom, 0px)));
   }
   .page-title {
     font-size: 22px;
@@ -1035,6 +1039,14 @@ input, select, textarea, .input-field {
   .wait-timer-clock {
     font-size: 46px;
   }
+}
+
+/* iOS Add to Home Screen: honor the actual standalone viewport and safe areas. */
+@media (display-mode: standalone) {
+  html, body { min-height:100vh; min-height:100svh; min-height:100dvh; background-attachment:scroll; }
+  #app, .app-shell { min-height:100vh; min-height:100svh; min-height:100dvh; }
+  .header-bar { padding-top:max(12px, env(safe-area-inset-top, 0px)); }
+  .footer-nav { padding-bottom:max(12px, calc(8px + env(safe-area-inset-bottom, 0px))); }
 }
 
 /* ==========================================================
@@ -1461,7 +1473,12 @@ input, select, textarea, .input-field {
 .details-card .card { margin-top:8px !important; }
 .rider-shell .details-card:not([open]) { display:block; }
 .pilot-shell .content-body { gap:12px; }
-.header-bar { justify-content:center; min-height:70px; padding:5px 12px; }
+.header-bar {
+  justify-content:center;
+  min-height:70px;
+  /* Keep the lockup below the iOS status bar in Add to Home Screen mode. */
+  padding: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) 5px max(12px, env(safe-area-inset-left, 0px));
+}
 .header-brand-lockup { display:flex; align-items:center; justify-content:center; gap:10px; width:100%; }
 .header-bunny-mark { display:grid; place-items:center; flex:0 0 42px; width:42px; height:42px; border:1px solid rgba(255,255,255,.28); border-radius:12px; background:linear-gradient(135deg,#ff2a8d 0%,#8b5cf6 100%); box-shadow:0 0 16px rgba(255,42,141,.42); font-size:23px; line-height:1; }
 .header-logo { display:block; width:min(310px, 72vw); height:auto; object-fit:contain; }
