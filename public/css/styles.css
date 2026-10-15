@@ -1439,6 +1439,8 @@ input, select, textarea, .input-field {
 .rider-shell .destination-input:focus { border-color:#f52b91; outline:2px solid rgba(245,43,145,.15); }
 .rider-shell .destination-input::placeholder { color:#91879f; }
 .rider-shell .address-search-hint { margin:7px 0; color:#aaa0bb; font-size:11px; }
+.rider-shell .address-search-hint[role="status"] { min-height:1.4em; }
+.rider-shell .address-result:focus-visible { outline:2px solid #f52b91; outline-offset:-2px; }
 .rider-shell .address-search-button { width:auto; min-height:38px; padding:8px 12px; border-color:rgba(209,198,235,.17); background:#211a2c; color:#eee8f8; font-size:12px; }
 .rider-shell .address-results { margin-top:8px; overflow:hidden; border:1px solid rgba(209,198,235,.17); border-radius:12px; background:#100c18; }
 .rider-shell .address-result { padding:12px; border-bottom:1px solid rgba(209,198,235,.1); background:transparent; }
