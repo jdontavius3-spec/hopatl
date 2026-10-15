@@ -157,6 +157,35 @@ input, select, textarea, .input-field {
   }
 }
 
+/* Keep the mobile-first flow comfortable in the desktop in-app browser too.
+   On phones the shell remains edge-to-edge; on larger viewports it gains a
+   wider frame and a readable, centered booking column instead of a narrow
+   480px strip surrounded by empty space. */
+@media (min-width: 700px) {
+  .app-shell {
+    max-width: min(100%, 1040px);
+  }
+
+  .content-body {
+    max-width: 840px;
+    margin-inline: auto;
+    padding: 24px 32px 40px;
+  }
+
+  .rider-shell .content-body {
+    gap: 16px;
+    padding-top: 20px;
+  }
+
+  .rider-shell .booking-card {
+    padding: 24px;
+  }
+
+  .header-bar {
+    padding-inline: 24px;
+  }
+}
+
 /* HEADER WITH SAFE AREA INSET */
 .header-bar {
   position: sticky;
