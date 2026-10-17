@@ -1526,3 +1526,5 @@ input, select, textarea, .input-field {
 
 .settlement-actions{display:grid;gap:9px;margin:12px 0}.settlement-actions button{width:100%;min-height:46px}
 @media(max-width:480px){.live-map-canvas{height:250px}.map-coordinate-row{grid-template-columns:1fr}.gps-map-marker{width:30px;height:30px}.sms-action-card{padding:14px}}
+
+.rider-availability{display:grid;grid-template-columns:12px 1fr;align-items:center;gap:4px 9px;padding:11px 13px;margin:0 0 12px;border-radius:12px;border:1px solid #5e354a;background:#1b1020;color:#e7deed}.rider-availability strong{font-size:12px;letter-spacing:.09em}.rider-availability>span:last-child{grid-column:2;font-size:12px;color:#c7bdd1}.availability-dot{width:10px;height:10px;border-radius:50%;background:#a6a0ad;box-shadow:0 0 0 3px #a6a0ad22}.rider-availability.ready{border-color:#137d64;background:#0b211d}.rider-availability.ready .availability-dot{background:#34d399;box-shadow:0 0 0 3px #34d39933}.rider-availability.unavailable .availability-dot{background:#fb7185;box-shadow:0 0 0 3px #fb718533}.rider-availability.unknown .availability-dot{background:#fbbf24;box-shadow:0 0 0 3px #fbbf2433}

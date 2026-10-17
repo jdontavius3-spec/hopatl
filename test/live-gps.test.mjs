@@ -27,16 +27,20 @@ test('online pilot receives a request and accepted pilot/vehicle details reach r
  const login=await call('/api/driver/login',{method:'POST',data:{code:driverCode,name:'Test Pilot',phone:'+14045550123',smsConsent:true,vehicle:'Blue Test Sedan',plate:'TEST123'}});
  assert.equal(login.status,200);
  const driverToken=login.body.driverToken;
+ assert.equal((await call('/api/rider/availability')).body.status,'OFFLINE');
  assert.equal((await call('/api/driver/availability',{method:'POST',token:driverToken,data:{available:true}})).status,200);
+ assert.equal((await call('/api/rider/availability')).body.status,'READY');
 
  const created=await call('/api/trip/create',{method:'POST',data:{initialFix:pickup,quoteId,riderPhone:'+14045550123',smsConsent:true,passengerCount:1}});
  assert.equal(created.status,201);
+ assert.equal((await call('/api/rider/availability')).body.status,'BUSY');
  const incoming=await call('/api/driver/request',{token:driverToken});
  assert.equal(incoming.body.pending,true);
  assert.equal(incoming.body.tripId,created.body.tripId);
 
  const accepted=await call('/api/trip/claim',{method:'POST',token:driverToken,data:{initialFix:pickup}});
  assert.equal(accepted.status,200);
+ assert.equal((await call('/api/rider/availability')).body.status,'BUSY');
  assert.equal(accepted.body.state.acceptedPilotVehicle,'Blue Test Sedan');
  assert.equal(accepted.body.state.acceptedPilotPlate,'TEST123');
 
