@@ -24,7 +24,7 @@ test('online pilot receives a request and accepted pilot/vehicle details reach r
  const pickup={lat:33.749,lng:-84.388,accuracy:5};
  service.importPersistentState({routeQuotes:[[quoteId,{quote:{quoteId,destination:{label:'Test destination',lat:33.75,lng:-84.39},route:{totalDistanceMiles:4,totalDurationSeconds:600},fare:{totalCents:2000},waitMinutes:15,hops:[]},pickup:{lat:pickup.lat,lng:pickup.lng},expires:Date.now()+60_000}]]});
 
- const login=await call('/api/driver/login',{method:'POST',data:{code:driverCode,name:'Test Pilot',vehicle:'Blue Test Sedan',plate:'TEST123'}});
+ const login=await call('/api/driver/login',{method:'POST',data:{code:driverCode,name:'Test Pilot',phone:'+14045550123',smsConsent:true,vehicle:'Blue Test Sedan',plate:'TEST123'}});
  assert.equal(login.status,200);
  const driverToken=login.body.driverToken;
  assert.equal((await call('/api/driver/availability',{method:'POST',token:driverToken,data:{available:true}})).status,200);
@@ -57,4 +57,11 @@ test('online pilot receives a request and accepted pilot/vehicle details reach r
  const board=await call('/api/dispatch/board',{token:operator.body.operatorToken});
  assert.equal(board.status,200);
  assert.equal(board.body.request.acceptedPilotPlate,'TEST123');
+ assert.equal(board.body.pilots[0].phone,'+14045550123');
+ const removed=await call('/api/dispatch/remove-pilot',{method:'POST',token:operator.body.operatorToken,data:{pilotId:login.body.pilotId}});
+ assert.equal(removed.status,200);
+ assert.equal(removed.body.pilots.length,0);
+ assert.equal(removed.body.request.status,'CANCELLED');
+ const riderAfterRemoval=await call('/api/trip/state',{token:created.body.riderToken});
+ assert.equal(riderAfterRemoval.body.state.tripState,'CANCELLED');
 });
