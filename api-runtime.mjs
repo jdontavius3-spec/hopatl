@@ -30,7 +30,7 @@ const reply = (res, status, data) => {
 
 export default async function handler(req, res) {
   if (!REST_URL || !REST_TOKEN) {
-    return reply(res, 503, { ok: false, error: 'Shared trip storage is not configured. Trips are disabled.' });
+    return handleRequest(req, res);
   }
 
   const lockToken = randomUUID();

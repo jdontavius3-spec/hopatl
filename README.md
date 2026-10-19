@@ -1,41 +1,49 @@
-# TRICKHOPPER · Closed GPS Proof of Concept
+# TRICKHOPPER · Atlanta Nightlife Multi-Hop & Wait-and-Return Prototype
 
-This app is for experimental, controlled rider/pilot ride validation with consenting participants. It captures device GPS, route estimates, pickup and destination wait, return legs, and trip completion. In-app checkout is simulated; it does not charge riders or pay pilots.
+A live rider/pilot proof of flow for Atlanta nightlife roundtrip rides (`hopatl.com`) featuring **1–3 stop itineraries**, **reserved pilot standby blocks**, **2-minute curbside summon**, **50% upfront retainer deposit protection**, and a **self-serve Auto-Pilot Demo Simulator**.
 
-## Local demo
+## Quick Start & Demo Modes
 
-Run `npm start` and open `http://localhost:4242/` for the rider view and `http://localhost:4242/driver` for the pilot view. Both views share one local Node process. The browser asks for location only after the participant starts sharing. The pilot can accept the request, record pickup and drop-off events, run the return wait timer, and complete the GPS session. The checkout success/decline states are simulated and move no funds.
+Start the server with `npm start`, then open:
+- **Rider Portal:** `http://localhost:4242/`
+- **Pilot Console:** `http://localhost:4242/driver`
 
-The destination flow requests a one-time round-trip estimate and offers 15, 30, or 60 minutes of included destination wait. The wait block is included at the demo rate of $0.25/minute ($3.75, $7.50, or $15.00). Destination overrun is tracked after the reserved block plus two minutes; pickup wait has its own two-minute grace. These are unvalidated examples, not fares or an offer of transportation.
+### Two Ways to Demo
+1. **Solo / Investor Walkthrough (Auto-Pilot Simulator):**
+   - On `/`, tap **⚡ Use Midtown Atlanta Demo Pickup** (or share live device GPS).
+   - Add 1 to 3 stops (e.g., *Magic City* for 30 min, *Waffle House* for 15 min), calculate the upfront retainer quote, and tap **⚡ Request & Launch Auto-Pilot Demo**.
+   - Simulated Pilot **Rocko (Black 2024 Cadillac Escalade ESV · ATL-HOP1)** automatically pairs, streams GPS telemetry on the Leaflet street map, and lets you step through every stage (`EN_ROUTE` → `WAITING_PICKUP` → `ACTIVE` → `WAITING_HOP` → `WAITING_RETURN` → `RETURNING` → `COMPLETED`) using the **Interactive Prototype Walkthrough Bar**.
+2. **Two-Device Live GPS Run (Rider + Pilot):**
+   - Rider requests a trip on `/` (`📡 Send Request to Live Pilot Console`).
+   - Pilot accepts from `/driver` with live GPS (or Midtown Demo GPS).
+   - Pilot records arrivals, standby waits, and return leg completion; **pilot actions remain fully operational even if the rider's phone screen locks inside a venue**.
 
-Route estimates use the public OpenStreetMap Nominatim geocoder and OSRM demo router. They do not provide traffic-aware ETAs or a service guarantee. Pickup coordinates and destination are sent to these providers after the rider asks for a quote; include that in participant consent and avoid collecting more personal information than the test needs.
+## Calibrated Nightlife Retainer Economics (`public/js/pricing.js`)
 
-Address suggestions use Google Places API (New) when `GOOGLE_PLACES_API_KEY` is set; otherwise the Photon suggestion fallback remains available. The key is read only by the server, so store it as a Vercel Secret (and in a local untracked `.env` for development). Enable Places API (New), restrict the key to that API, and set usage quotas/budget alerts in Google Cloud. Suggestions use per-search session tokens and request only the selected place's ID, formatted address, and coordinates. Google Maps attribution appears beside suggestions. Selected coordinates are used for the rider's current trip only; the live trip state expires after 12 hours. Before enabling this provider on a public deployment, publish Terms of Use and Privacy Policy pages that incorporate Google's required terms and privacy notices.
+Designed so dedicated standby blocks fairly compensate Atlanta pilots compared to point-to-point Uber/Lyft driving while protecting pilots from mid-stop abandonment:
+- **Roundtrip Dispatch Base:** `$4.00`
+- **Per Road / GPS Mile:** `$1.35/mi`
+- **Per Active Driving Minute:** `$0.30/min`
+- **Reserved Standby Tiers:**
+  - `15 min` (**Quick Hop** — food run, fit change, quick pickup): `$6.00` (`$0.40/min`)
+  - `30 min` (**Lounge Hold** — pre-game, cocktail stop, VIP drop-in): `$13.50` (`$0.45/min`)
+  - `60 min` (**VIP Standby** — full venue session, pilot staged nearby): `$27.00` (`$0.45/min`)
+- **Grace & Overrun:** Separate **2-minute free grace period** at pickup and after each reserved hop block; overrun past grace accrues at `$0.50/min`.
+- **50% Upfront Retainer Deposit:** Locks 50% of the quoted retainer upfront so pilots are never left unpaid if a rider decides to stay at a venue; the remaining 50% + any wait overrun is settled upon return completion.
+- **Minimum Roundtrip Retainer:** `$12.00`
 
-## Hosting and live trip limits
+## Legal Standby & 2-Minute Curbside Summon
 
-The local Node server keeps one current trip in process memory. Keep it running throughout a controlled test; restarting it clears the trip. Use the connected Vercel + shared-storage setup for cross-device sessions outside the local computer.
+Because Atlanta nightlife venues (*Magic City*, *Ponce City Market*, *Krog Street Market*, *Compound*, *Buckhead*) do not allow vehicles to idle at the curb for 30–60 minutes, TRICKHOPPER separates **Legal Standby Staging** from **Curbside Pull-Up**:
+- Upon drop-off at a hop, the pilot transitions to `STAGED_NEARBY` (parked legally 1 block away) while the shared standby clock runs.
+- When ready to leave, the rider taps **🚨 Summon Pilot to Curb (Heading Out in 2 Min)**—or taps **⏱ +15 Min Standby** to extend their reserved wait in-app.
+- Both parties communicate via **in-app preset status pings** without exposing personal phone numbers.
 
-The Vercel build now includes a shared API handler at `api/[...path].js`. It uses Upstash Redis REST credentials (`UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`) to serialize trip updates and share a trip state across function invocations. State and GPS tracks expire after 12 hours. The rider and pilot pages poll the authenticated state feed every two seconds on this hosting mode. If storage is not configured or reachable, `/api/*` returns an error and the app disables booking and pairing.
+## Verification & Automated Audit
 
-The rider booking portal requires no access code to reduce friction for controlled testing; anyone with the staging URL can submit a request when a pilot is online. Each pilot signs in with the shared staging `DRIVER_ACCESS_CODE`, roster name/callsign, US mobile number, and SMS consent, and receives a distinct 8-hour session. Dispatch stores and displays the number in the private pilot roster; the operator can open a prefilled text in the device's messaging app. A browser cannot send SMS by itself: the device needs a messaging app and carrier or other SMS service, and a person must tap Send. Online status is tracked per pilot and expires without heartbeats. Pilot claims bind the accepting pilot name to the active request; completed, cancelled, and expired rides enter a small dispatch history. The private `/dispatch` console accepts `DISPATCH_ACCESS_CODE`; for a small controlled test it falls back to `DRIVER_ACCESS_CODE` until a separate operator code is configured. Set a distinct dispatch Secret before expanding access. These are test access gates, not verified pilot or operator identities. Dispatch history now includes request/accept and ride durations, planned route distance versus recorded pilot GPS distance, reserved and observed wait, and rider/pilot GPS sample counts. The operator can export these measures to CSV without exporting phone numbers or coordinates. History is limited to 50 entries and shares the 12-hour demo retention window, so export records before they expire.
-
-The unauthenticated simulation snapshot endpoint has been removed; ride state is available only through rider, pilot, or operator credentials. Production deployments also reject generated-coordinate simulation rides by default. Local and preview deployments can still run the simulator; an operator must explicitly set `ALLOW_SIMULATED_RIDES=true` to permit simulation on production.
-
-For the current single-pilot controlled test, riders provide a mobile number and consent to one ride confirmation. The online pilot receives the request in the open pilot portal. Dispatch can open a prefilled message to a pilot's stored number in the operator device's messaging app; a person must tap Send, and the device needs carrier or other SMS service. Ride request notifications inside the open pilot portal do not require SMS. SMS links only open the device messaging app for a person to review and send; no automatic pilot request text is sent. TRICKHOPPER only records the pilot's self-confirmation; it cannot verify carrier delivery. The rider number is kept with the active ride and exposed only to the accepting pilot. To enable automatic transactional texts later, add `TWILIO_ACCOUNT_SID`, `TWILIO_API_KEY_SID`, `TWILIO_API_KEY_SECRET`, and `TWILIO_FROM_NUMBER` to the staging Vercel project's Environment Variables as Secrets. Use a sender approved for the intended US texting use. Twilio's trial accounts have recipient and message-content restrictions, and US local-number application messaging has A2P 10DLC registration requirements. [Twilio Message API](https://www.twilio.com/docs/messaging/api/message-resource), [Twilio trial restrictions](https://www.twilio.com/docs/usage/tutorials/how-to-use-your-free-trial-account), [A2P 10DLC options for sole proprietors](https://www.twilio.com/docs/messaging/compliance/a2p-10dlc/direct-sole-proprietor-registration-overview).
-
-The staging API uses Upstash Redis REST credentials so pilot presence and the dispatch history can be shared across Vercel function invocations. Confirm the staging Vercel project has `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`; use the free tier and stop accepting demo requests if its usage cap is reached. [Upstash pricing](https://upstash.com/pricing/redis), [Upstash REST API](https://upstash.com/docs/redis/features/restapi).
-
-`.env.example` shows variable names and placeholders only; it contains no credentials. Keep staging secrets in the `trickhopper-staging` Vercel project. Do not use this setup to replace the separate hosted `hopatl.com` app.
-
-The rider portal and booking APIs are open to anyone who has the staging URL; request creation requires an online pilot, a current GPS fix, a selected route quote, and configured SMS consent (SMS delivery itself is optional). The pilot portal and operator console have staging-code gates; configure a distinct operator code before widening access. When a pilot goes online, the open portal polls the request feed; a newly seen request produces an in-page update, a brief sound/vibration where supported, and a browser notification when allowed. This is foreground polling, not background push, so pilots should keep the portal open. Pilots provide a mobile number and SMS consent at sign-in; dispatch can see the number in the private roster and remove the pilot profile. Pilots may enter a vehicle description and plate at sign-in; dispatch can see these details, and riders see them only after that pilot accepts. The backend tracks multiple signed-in pilot presences, but the current ride engine intentionally supports one active trip globally. It does not yet dispatch several simultaneous requests, so keep the staging board in controlled tests. Before wider rollout, replace the single-trip state with tripId-keyed records and test claim races, cancellation, completion, and recovery across separate devices. Browser GPS is device-reported and can be spoofed; the staging codes do not establish identity or authorization to transport passengers.
-
-The hosted `hopatl.com` app is a different, older build from this source. Replacing it requires connecting the correct source and backend to the Vercel project; no domain or deployment changes are included in this review copy.
-
-## Demo limits
-
-- GPS comes from the browser/device after permission; the app cannot independently prove a fix is authentic.
-- Fare values are demonstration math only. No quote is guaranteed, invoiced, or charged.
-- Checkout success and decline are simulated. There is no Stripe, Apple Pay, Cash App payment, or pilot payout integration in this demo interface. Without Twilio credentials, the operator or pilot can open a prefilled SMS in the device messaging app and tap Send; carrier delivery is not verified by TRICKHOPPER.
-- The local server's trip state is temporary and memory-only. The Vercel handler uses an expiring shared demo record, not a durable audit log; dispatch sign-in is a shared test code, not an individually authenticated operator account, and there is no support or emergency-response workflow.
-- Before any real public ride operation, resolve local/state licensing, driver screening, vehicle eligibility, appropriate insurance, privacy/retention, and safety procedures with qualified providers and counsel.
+Run `npm test` to execute `test/live-gps.test.mjs`, which verifies:
+1. Scoped bearer token exchange, one-time pilot join codes, and role-based access control.
+2. Multi-hop route quoting,Atlanta Nightlife Gazetteer lookup, 50% deposit split, and 2 AM surge comparison.
+3. Pilot screen-lock independence (wait and completion events succeed even when rider GPS is background-suspended).
+4. In-app wait extensions (`+15 min`) and Curbside Summon pings (`SUMMON_CURB`).
+5. End-to-end self-serve Auto-Pilot Demo Simulator and settlement flows.

@@ -1,56 +1,644 @@
-export const TRIP_STATES = { IDLE:'IDLE', REQUESTED:'REQUESTED', EN_ROUTE:'EN_ROUTE', WAITING_PICKUP:'WAITING_PICKUP', ACTIVE:'ACTIVE', WAITING_HOP:'WAITING_HOP', WAITING_RETURN:'WAITING_RETURN', RETURNING:'RETURNING', COMPLETED:'COMPLETED', CANCELLED:'CANCELLED', EXPIRED:'EXPIRED' };
-const newAddressSession=()=>crypto.randomUUID().replaceAll('-','');
-const empty=()=>({tripState:TRIP_STATES.IDLE,backendStatus:'checking',liveLocations:{rider:null,pilot:null},tracks:{rider:[],pilot:[]},fixCounts:{rider:0,pilot:0},gpsActiveByRole:{rider:false,pilot:false},gpsRequestingByRole:{rider:false,pilot:false},gpsErrors:{},tripDistanceMiles:0,notificationMessage:null,smsConfirmation:null,riderPhone:'',smsRecipientPhone:null,smsConsent:false,rideStartedAt:null,rideCompletedAt:null,tripId:null,bookingPickup:null,destination:null,destinationText:'',stops:[{destination:'',addressId:null,selectedAddress:null,addressResults:[],addressError:null,addressSearching:false,suggestions:[],suggesting:false,suggestProvider:'Photon',suggestError:null,suggestionUnavailable:false,suggestRequest:0,selectingSuggestion:false,addressSessionToken:null,waitMinutes:15}],passengerCount:1,routeQuote:null,routeLoading:false,routeError:null,requestSubmitting:false,riderAvailability:null});
-const fresh=p=>{const age=Date.now()-Date.parse(p?.timestamp||'');return Number.isFinite(age)&&age>=-5000&&age<30000&&Number(p.accuracy)<=100};
-const currentRole=()=>location.pathname.replace(/\/+$/,'')==='/driver'?'pilot':'rider';
+export const TRIP_STATES = {
+  IDLE: 'IDLE',
+  REQUESTED: 'REQUESTED',
+  EN_ROUTE: 'EN_ROUTE',
+  WAITING_PICKUP: 'WAITING_PICKUP',
+  ACTIVE: 'ACTIVE',
+  WAITING_HOP: 'WAITING_HOP',
+  WAITING_RETURN: 'WAITING_RETURN',
+  RETURNING: 'RETURNING',
+  COMPLETED: 'COMPLETED',
+  CANCELLED: 'CANCELLED',
+  EXPIRED: 'EXPIRED',
+};
+
+const defaultStop = (waitMinutes = 30) => ({
+  destination: '',
+  waitMinutes,
+  suggestions: [],
+  suggesting: false,
+  selectedPlace: null,
+});
+
+const empty = () => ({
+  tripState: TRIP_STATES.IDLE,
+  simulationMode: false,
+  liveLocations: { rider: null, pilot: null },
+  tracks: { rider: [], pilot: [] },
+  fixCounts: { rider: 0, pilot: 0 },
+  gpsActiveByRole: { rider: false, pilot: false },
+  gpsRequestingByRole: { rider: false, pilot: false },
+  gpsErrors: {},
+  tripDistanceMiles: 0,
+  notificationMessage: null,
+  rideStartedAt: null,
+  rideCompletedAt: null,
+  tripId: null,
+  bookingPickup: null,
+  destination: null,
+  destinationText: '',
+  waitSelectionMinutes: 30,
+  stops: [defaultStop(30)],
+  passengerCount: 2,
+  holdDeposit: true,
+  depositStatus: 'UNPAID',
+  depositAmountCents: null,
+  curbsideStatus: 'NONE',
+  pings: [],
+  stopIndex: 0,
+  stopWaits: [],
+  routeQuote: null,
+  routeLoading: false,
+  routeError: null,
+  pilotName: sessionStorage.getItem('trickhopper_pilot_name') || 'Dohntay (VIP Pilot)',
+  pilotVehicle: sessionStorage.getItem('trickhopper_pilot_vehicle') || 'Black Cadillac Escalade ESV',
+  pilotPlate: sessionStorage.getItem('trickhopper_pilot_plate') || 'ATL-HOP1',
+});
+
+const fresh = p => {
+  const age = Date.now() - Date.parse(p?.timestamp || '');
+  return Number.isFinite(age) && age >= -5000 && age < 45000 && Number(p.accuracy) <= 100;
+};
+
 export class Store {
- constructor(){this.listeners=new Set();this.pendingFixes={};this.heartbeatInFlight=false;this.alertAudioContext=null;this.lastAlertedRequestId=sessionStorage.getItem('trickhopper_last_pilot_alert');this.state={...empty(),activeMode:currentRole(),driverLoginError:null,driverLoginBusy:false,driverAvailable:false,driverName:sessionStorage.getItem('trickhopper_pilot_name')||'',driverPhone:sessionStorage.getItem('trickhopper_pilot_phone')||'',driverVehicle:sessionStorage.getItem('trickhopper_pilot_vehicle')||'',driverPlate:sessionStorage.getItem('trickhopper_pilot_plate')||''};this.role=this.state.activeMode;this.token=sessionStorage.getItem(`trickhopper_${this.role}_token`);this.tripId=sessionStorage.getItem(`trickhopper_${this.role}_trip`);this.driverToken=this.role==='pilot'?sessionStorage.getItem('trickhopper_driver_session'):null;this.checkBackend();if(this.token)this.restore();else if(this.role==='pilot'&&this.driverToken)this.refreshOpenRequest();else if(this.role==='rider')this.startRiderAvailabilityPolling();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&this.role==='pilot'&&this.driverToken&&this.state.driverAvailable)this.heartbeatDriver()});window.addEventListener('popstate',()=>{if(currentRole()!==this.role){location.reload();return}this.state.activeMode=currentRole();this.notify()})}
- startRiderAvailabilityPolling(){if(this.role!=='rider'||this.token||this.riderAvailabilityTimer)return;this.refreshRiderAvailability();this.riderAvailabilityTimer=setInterval(()=>this.refreshRiderAvailability(),5000)}
- stopRiderAvailabilityPolling(){clearInterval(this.riderAvailabilityTimer);this.riderAvailabilityTimer=null}
- async refreshRiderAvailability(){if(this.role!=='rider'||this.token)return;try{const response=await fetch('/api/rider/availability',{cache:'no-store'});if(!response.ok)throw Error('availability unavailable');this.state.riderAvailability=await response.json()}catch{this.state.riderAvailability={ready:false,status:'UNKNOWN',message:'Availability check unavailable. Try again shortly.'}}this.notify()}
- async checkBackend(){try{const response=await fetch('/api/health',{cache:'no-store'}),body=response.ok?await response.json():null;this.state.backendMode=body?.mode||null;this.state.addressAutocompleteEnabled=Boolean(body?.addressAutocompleteEnabled);this.state.smsConfigured=Boolean(body?.smsConfigured);this.state.backendStatus=body?.ok&&['single-process-demo','shared-persistent-demo'].includes(body?.mode)?'ready':'offline'}catch{this.state.backendStatus='offline'}this.notify()}
- startRequestPolling(){if(this.queueTimer||!this.driverToken||!this.state.driverAvailable||this.token)return;this.refreshOpenRequest();this.queueTimer=setInterval(()=>this.refreshOpenRequest(),2500)}
- stopRequestPolling(){clearInterval(this.queueTimer);this.queueTimer=null}
- startDriverHeartbeat(){if(this.driverHeartbeatTimer||!this.driverToken||!this.state.driverAvailable||this.token)return;this.heartbeatDriver();this.driverHeartbeatTimer=setInterval(()=>this.heartbeatDriver(),15000)}
- async heartbeatDriver(){if(this.heartbeatInFlight||!this.driverToken||!this.state.driverAvailable||this.token)return;this.heartbeatInFlight=true;try{await this.post('/api/driver/heartbeat',{},this.driverToken);this.state.driverLoginError=null}catch(error){if(error.status===401||error.status===409){this.state.driverAvailable=false;this.stopRequestPolling();this.stopDriverHeartbeat()}else this.state.driverLoginError='Connection paused; the pilot portal will retry automatically.';this.notify()}finally{this.heartbeatInFlight=false}}
- stopDriverHeartbeat(){clearInterval(this.driverHeartbeatTimer);this.driverHeartbeatTimer=null}
- async loginDriver(code,name,phone,vehicle='',plate='',smsConsent=false){this.state.driverLoginBusy=true;this.state.driverLoginError=null;this.notify();try{const result=await this.post('/api/driver/login',{code,name,phone,vehicle,plate,smsConsent,pilotId:localStorage.getItem('trickhopper_pilot_id')},null);this.driverToken=result.driverToken;this.state.driverName=result.pilotName;this.state.driverId=result.pilotId;this.state.driverPhone=result.phone||'';this.state.driverVehicle=result.vehicle||'';this.state.driverPlate=result.plate||'';this.state.driverAvailable=Boolean(result.available);sessionStorage.setItem('trickhopper_driver_session',this.driverToken);sessionStorage.setItem('trickhopper_pilot_name',result.pilotName);sessionStorage.setItem('trickhopper_pilot_phone',this.state.driverPhone);sessionStorage.setItem('trickhopper_pilot_vehicle',this.state.driverVehicle);sessionStorage.setItem('trickhopper_pilot_plate',this.state.driverPlate);localStorage.setItem('trickhopper_pilot_id',result.pilotId);if(this.state.driverAvailable){this.startDriverHeartbeat();this.startRequestPolling()}return true}catch(error){this.state.driverLoginError=error.message||'Could not sign in.';return false}finally{this.state.driverLoginBusy=false;this.notify()}}
- async setDriverAvailability(available){if(!this.driverToken)return false;if(available){try{if('Notification'in window&&Notification.permission==='default')await Notification.requestPermission();const Audio=window.AudioContext||window.webkitAudioContext;if(Audio){this.alertAudioContext||=new Audio();await this.alertAudioContext.resume()}}catch{}}try{const result=await this.post('/api/driver/availability',{available},this.driverToken);this.state.driverAvailable=Boolean(result.available);if(this.state.driverAvailable){this.startDriverHeartbeat();this.startRequestPolling()}else{this.stopRequestPolling();this.stopDriverHeartbeat()}this.notify();return true}catch(error){this.state.driverLoginError=error.message||'Could not change availability.';this.notify();return false}}
- logoutDriver(){if(this.driverToken&&this.state.driverAvailable)this.setDriverAvailability(false);this.stopRequestPolling();this.stopDriverHeartbeat();this.driverToken=null;this.state.driverAvailable=false;this.state.driverLoginError=null;sessionStorage.removeItem('trickhopper_driver_session');this.notify()}
- async refreshOpenRequest(){if(this.role!=='pilot'||!this.driverToken||this.token)return;try{const r=await fetch('/api/driver/request',{headers:{Authorization:`Bearer ${this.driverToken}`},cache:'no-store'});if(r.status===401){this.logoutDriver();return}const data=await r.json().catch(()=>({}));if(!r.ok){this.state.driverLoginError=data.error||'The request queue could not be reached. Retrying automatically.';this.notify();return}this.state.driverLoginError=null;this.state.driverAvailable=Boolean(data.available||data.wantsAvailable);this.state.driverName=data.pilotName||this.state.driverName;if(this.state.driverAvailable){this.startDriverHeartbeat();this.startRequestPolling()}else this.stopDriverHeartbeat();if(data.pending){const isNew=data.tripId&&data.tripId!==this.lastAlertedRequestId;if(isNew){this.lastAlertedRequestId=data.tripId;try{sessionStorage.setItem('trickhopper_last_pilot_alert',data.tripId)}catch{}if(navigator.vibrate)navigator.vibrate([180,90,180]);try{const context=this.alertAudioContext;if(context?.state==='running'){const oscillator=context.createOscillator(),gain=context.createGain();oscillator.frequency.value=880;gain.gain.value=.035;oscillator.connect(gain);gain.connect(context.destination);oscillator.start();oscillator.stop(context.currentTime+.18)}}catch{}if('Notification'in window&&Notification.permission==='granted'){try{new Notification('New TRICKHOPPER request',{body:`${data.destination?.label||'Pickup request'} · ${Number(data.passengerCount||1)} passenger(s)`,tag:`trickhopper-${data.tripId}`})}catch{}}}this.state.tripState=TRIP_STATES.REQUESTED;this.state.liveLocations={...this.state.liveLocations,rider:data.pickup};this.state.destination=data.destination;this.state.passengerCount=data.passengerCount||1;this.state.routeQuote=data.routeQuote;this.state.notificationMessage='A new pickup request is waiting. Accept it to connect and share live GPS.'}else if(this.state.tripState===TRIP_STATES.REQUESTED){this.state={...empty(),activeMode:this.state.activeMode,driverAvailable:this.state.driverAvailable,driverName:this.state.driverName,notificationMessage:data.tripState==='EXPIRED'?'The request timed out without an acceptance.':data.tripState==='CANCELLED'?'The rider cancelled this request.':data.tripState!=='REQUESTED'?'That request is no longer available.':'No pickup request is currently waiting.'}}this.notify()}catch{this.state.driverLoginError='The request queue is temporarily unreachable. Retrying automatically.';this.notify()}}
- async clearExpiredTripSession(){this.events?.close();this.events=null;clearInterval(this.tripPollTimer);this.tripPollTimer=null;const key=`trickhopper_${this.role}_token`;this.token=null;this.tripId=null;sessionStorage.removeItem(key);sessionStorage.removeItem(`trickhopper_${this.role}_trip`);this.state={...empty(),activeMode:this.role,driverToken:this.driverToken,driverName:this.state.driverName,driverId:this.state.driverId,driverAvailable:false,notificationMessage:'The prior trip session expired. Sign in again to refresh the pilot portal.'};this.notify();if(this.role==='pilot'&&this.driverToken)await this.refreshOpenRequest()}
- async restore(){try{const r=await fetch('/api/trip/state',{headers:{Authorization:`Bearer ${this.token}`},cache:'no-store'});if(r.status===401){await this.clearExpiredTripSession();return}if(!r.ok)return;const data=await r.json();this.mergeServer(data);if(this.role==='pilot'){const contact=await fetch('/api/trip/pilot-sms-contact',{headers:{Authorization:`Bearer ${this.token}`},cache:'no-store'});if(contact.ok)this.state.smsRecipientPhone=(await contact.json()).riderSmsContact||null}this.connectEvents();this.notify()}catch{}}
- startTripPolling(){if(this.tripPollTimer||!this.token)return;const poll=async()=>{if(!this.token)return;try{const r=await fetch('/api/trip/state',{headers:{Authorization:`Bearer ${this.token}`},cache:'no-store'});if(r.ok){this.mergeServer(await r.json());this.notify()}else if(r.status===401)await this.clearExpiredTripSession()}catch{}};poll();this.tripPollTimer=setInterval(poll,2000)}
- async connectEvents(){if(!this.token)return;if(this.state.backendMode==='shared-persistent-demo'||!window.EventSource){this.startTripPolling();return}this.events?.close();try{const r=await fetch('/api/trip/events-ticket',{method:'POST',headers:{Authorization:`Bearer ${this.token}`,'Content-Type':'application/json'},body:'{}'});if(!r.ok){this.startTripPolling();return}const {ticket}=await r.json();this.events=new EventSource(`/api/trip/events?ticket=${encodeURIComponent(ticket)}`);this.events.onmessage=e=>{try{const p=JSON.parse(e.data);if(p.type==='INIT'||p.type==='STATE_UPDATE'||p.type==='CASH_UPDATE'||p.type==='SETTLEMENT_UPDATE'||p.type==='DEMO_PAYMENT_UPDATE'||p.type==='EXTERNAL_PAYMENT_UPDATE')this.mergeServer(p);else if(p.type==='LOCATION_UPDATE'){this.state.liveLocations={...this.state.liveLocations,[p.role]:p.location};this.state.tracks={...this.state.tracks,[p.role]:p.track};this.state.fixCounts=p.fixCounts;this.state.tripDistanceMiles=p.tripDistanceMiles;this.state.gpsActiveByRole=p.gpsActiveByRole||this.state.gpsActiveByRole}else if(p.type==='LOCATION_STATUS'){this.state.gpsActiveByRole={...this.state.gpsActiveByRole,[p.role]:p.active};this.state.gpsErrors={...this.state.gpsErrors,[p.role]:p.error||null}}else if(p.type==='TRIP_RESET')this.state={...empty(),activeMode:this.state.activeMode};this.notify()}catch(err){console.error(err)}};this.events.onerror=()=>{this.events?.close();this.startTripPolling()}}catch{this.startTripPolling()}}
- mergeServer(data){this.state={...this.state,...(data.state||data),...(data.shared||{}),tripId:data.tripId||this.state.tripId,activeMode:this.state.activeMode}}
- getState(){return this.state} subscribe(fn){this.listeners.add(fn);return()=>this.listeners.delete(fn)} notify(){for(const fn of this.listeners)fn(this.state)}
- async post(path,data={},token=this.token){try{const headers={'Content-Type':'application/json'};if(token)headers.Authorization=`Bearer ${token}`;const r=await fetch(path,{method:'POST',headers,body:JSON.stringify(data)});const result=await r.json();if(!r.ok){const error=Error(result.error||'Server rejected request');error.status=r.status;error.code=result.code;throw error}return result}catch(e){this.state.gpsErrors={...this.state.gpsErrors,[this.state.activeMode]:e.message||'Trip server connection lost.'};this.notify();throw e}}
- async recordGPS(role,fix){if(this.token){return this.sendLocation(role,fix)}this.pendingFixes[role]=fix;return true}
- discardPendingFix(role){delete this.pendingFixes[role]}
- async sendLocation(role,fix){try{const result=await this.post('/api/telemetry/location',{role,...fix});this.mergeServer(result);this.notify();return true}catch{return false}}
- setGPSRequesting(role,requesting){this.state.gpsRequestingByRole={...this.state.gpsRequestingByRole,[role]:requesting};if(requesting)this.state.gpsErrors={...this.state.gpsErrors,[role]:null};this.notify()}
- async setLocationStatus(role,active,error=null){this.state.gpsActiveByRole={...this.state.gpsActiveByRole,[role]:active};this.state.gpsRequestingByRole={...this.state.gpsRequestingByRole,[role]:false};this.state.gpsErrors={...this.state.gpsErrors,[role]:error};this.notify();if(this.token){try{await this.post('/api/telemetry/status',{role,active,error})}catch{}}}
- capturePickup(fix){this.state.bookingPickup=fix;this.state.routeQuote=null;this.state.routeError=null;this.notify()}
- setDestinationText(value,index=0){const stops=[...(this.state.stops||[{destination:'',waitMinutes:15}])];if(!stops[index])return;stops[index]={...stops[index],destination:value,addressId:null,selectedAddress:null,addressResults:[],addressError:null,suggestions:[],suggesting:false,suggestError:null,suggestionUnavailable:false,addressSessionToken:null,selectingSuggestion:false,suggestRequest:(stops[index].suggestRequest||0)+1};this.state.stops=stops;this.state.destinationText=value;this.state.routeError=null;this.state.routeQuote=null;this.notify()}
- async searchAddresses(index=0){const stop=this.state.stops[index],query=stop?.destination?.trim()||'';if(!stop)return false;if(query.length<4){stop.addressError='Enter at least 4 characters, then search for matching places.';this.notify();return false}stop.addressSearching=true;stop.addressError=null;this.notify();try{const result=await this.post('/api/address/search',{query});const current=this.state.stops[index];if(current?.destination.trim()!==query)return false;current.addressResults=result.results||[];current.addressSearching=false;current.addressError=current.addressResults.length?'':'No matching places. Add a street, city, or ZIP and search again.';this.notify();return Boolean(current.addressResults.length)}catch(error){const current=this.state.stops[index];if(current){current.addressSearching=false;current.addressError=error.message||'Address search failed. Try again.';current.addressResults=[];this.notify()}return false}}
- async suggestAddresses(index=0,queryValue=null){const stop=this.state.stops[index],query=String(queryValue??stop?.destination??'').trim();if(!stop||query.length<3||stop.suggestionUnavailable)return false;stop.addressSessionToken||=newAddressSession();const request=++stop.suggestRequest;stop.suggestError=null;stop.suggesting=true;stop.addressResults=[];stop.addressError=null;this.notify();try{const result=await this.post('/api/address/suggest',{query,sessionToken:stop.addressSessionToken});const current=this.state.stops[index];if(!current||current.suggestRequest!==request||current.destination.trim()!==query)return false;current.suggestions=result.results||[];current.suggestProvider=result.provider||'Photon';current.suggestAttribution=result.attribution||'';current.suggesting=false;current.suggestionUnavailable=!current.suggestions.length;current.suggestError=current.suggestions.length?'':'No close matches. Search the full address instead.';this.notify();return Boolean(current.suggestions.length)}catch(error){const current=this.state.stops[index];if(!current||current.suggestRequest!==request||current.destination.trim()!==query)return false;current.suggestions=[];current.suggesting=false;current.suggestionUnavailable=true;current.suggestError=error.message||'Quick suggestions are unavailable. Search the full address instead.';this.notify();return false}}
- async selectSuggestedAddress(index,result){const stop=this.state.stops[index];if(!stop||!result)return;if(!result.placeId){this.selectAddress(index,result);return}stop.selectingSuggestion=true;stop.suggestError=null;this.notify();try{const response=await this.post('/api/address/select',{placeId:result.placeId,query:stop.destination.trim(),sessionToken:stop.addressSessionToken});if(this.state.stops[index]!==stop)return;stop.addressSessionToken=null;stop.suggestProvider=response.provider||'Google Places';this.selectAddress(index,response.result)}catch(error){if(this.state.stops[index]!==stop)return;stop.selectingSuggestion=false;stop.suggestError=error.message||'Could not confirm that address. Search again.';this.notify()}}
- selectAddress(index,result){const stop=this.state.stops[index];if(!stop||!result?.id)return;stop.addressId=result.id;stop.selectedAddress=result;stop.addressError=null;stop.suggestError=null;stop.suggestions=[];stop.selectingSuggestion=false;stop.suggesting=false;this.state.routeError=null;this.state.routeQuote=null;this.notify()}
- setStopWait(minutes,index=0){const value=Number(minutes);if(![15,30,60].includes(value))return;const stops=[...this.state.stops];stops[index]={...stops[index],waitMinutes:value};this.state.stops=stops;this.state.routeQuote=null;this.state.routeError=null;this.notify()}
- addStop(){if(this.state.stops.length>=3)return;this.state.stops=[...this.state.stops,{destination:'',addressId:null,selectedAddress:null,addressResults:[],addressError:null,addressSearching:false,suggestions:[],suggesting:false,suggestProvider:'Photon',suggestError:null,suggestionUnavailable:false,suggestRequest:0,selectingSuggestion:false,addressSessionToken:null,waitMinutes:15}];this.state.routeQuote=null;this.notify()}
- removeStop(index){if(this.state.stops.length<=1)return;this.state.stops=this.state.stops.filter((_,i)=>i!==index);this.state.routeQuote=null;this.notify()}
- async quoteDestination(){const pickup=this.state.bookingPickup,stops=this.state.stops||[];if(!pickup){this.state.routeError='Share your live pickup location first.';this.notify();return false}if(stops.some(stop=>stop.destination.trim().length<4)){this.state.routeError='Enter an address or place name for every hop.';this.notify();return false}if(stops.some(stop=>!stop.addressId)){this.state.routeError='Search for and select the correct place for every hop before estimating.';this.notify();return false}this.state.routeLoading=true;this.state.routeError=null;this.notify();try{const result=await this.post('/api/route/quote',{pickup:{lat:pickup.lat,lng:pickup.lng},stops:stops.map(({destination,addressId,waitMinutes})=>({destination,addressId,waitMinutes}))});this.state.routeQuote=result.quote;this.state.routeLoading=false;this.notify();return true}catch(error){this.state.routeLoading=false;this.state.routeError=error.message||'Could not calculate a route. Please try again.';this.notify();return false}}
- async requestRide(){if(this.state.requestSubmitting)return false;const fix=this.state.bookingPickup,quote=this.state.routeQuote,phone=String(this.state.riderPhone||'').trim(),digits=phone.replace(/\D/g,'');if(!/^[+\d\s().-]+$/.test(phone)||![10,11].includes(digits.length)||(digits.length===11&&!digits.startsWith('1'))){this.state.routeError='Enter a valid US mobile number for ride updates.';this.notify();return false}if(!this.state.smsConsent){this.state.routeError='Consent is required for ride acceptance and pickup-arrival text updates.';this.notify();return false}if(!fix){this.state.notificationMessage='Share your current location before requesting a ride.';this.notify();return false}if(!quote){this.state.routeError='Get a fare estimate before requesting this ride.';this.notify();return false}this.state.requestSubmitting=true;this.state.routeError=null;this.stopRiderAvailabilityPolling();this.notify();try{const result=await this.post('/api/trip/create',{initialFix:fix,quoteId:quote.quoteId,passengerCount:this.state.passengerCount,riderPhone:phone,smsConsent:this.state.smsConsent});this.token=result.riderToken;this.tripId=result.tripId;sessionStorage.setItem('trickhopper_rider_token',this.token);sessionStorage.setItem('trickhopper_rider_trip',this.tripId);this.mergeServer(result);delete this.pendingFixes.rider;this.connectEvents();return true}catch(error){this.state.routeError=error.message||'Could not create the ride request.';return false}finally{this.state.requestSubmitting=false;if(!this.token)this.startRiderAvailabilityPolling();this.notify()}}
- async cancelRequest(){try{const result=await this.post('/api/trip/cancel',{});this.mergeServer(result);this.notify();return true}catch(error){this.state.routeError=error.message||'Could not cancel this request.';this.notify();return false}}
- async claimOpenRequest(initialFix){try{const result=await this.post('/api/trip/claim',{initialFix},this.driverToken);this.token=result.pilotToken;this.tripId=result.tripId;this.state.smsRecipientPhone=result.riderSmsContact||null;sessionStorage.setItem('trickhopper_pilot_token',this.token);sessionStorage.setItem('trickhopper_pilot_trip',this.tripId);this.stopRequestPolling();this.stopDriverHeartbeat();delete this.pendingFixes.pilot;this.mergeServer(result);this.connectEvents();return true}catch(error){this.state.driverLoginError=error.message||'Could not accept ride request.';this.notify();return false}}
- async confirmPilotSmsSent(milestone='acceptance'){try{const result=await this.post('/api/trip/pilot-sms-sent',{milestone},this.token);this.mergeServer(result);this.notify();return true}catch(error){this.state.driverLoginError=error.message||'Could not record the text confirmation.';this.notify();return false}}
- async acceptRide(){if(this.state.tripState!=='REQUESTED')return false;if(!fresh(this.state.liveLocations.rider)||!fresh(this.state.liveLocations.pilot)){this.state.notificationMessage='A fresh GPS fix from both portals is required to connect.';this.notify();return false}try{const result=await this.post('/api/trip/state',{tripState:'ACTIVE',notificationMessage:'Connected. Both trip locations are live.'});this.mergeServer(result);return true}catch{return false}}
- async completeRide(){if(!['ACTIVE','RETURNING'].includes(this.state.tripState))return false;if(!fresh(this.state.liveLocations.rider)||!fresh(this.state.liveLocations.pilot)||(this.state.fixCounts.rider||0)<2||(this.state.fixCounts.pilot||0)<2){this.state.notificationMessage='Both GPS streams need fresh fixes and trip telemetry before completion.';this.notify();return false}try{const result=await this.post('/api/trip/state',{tripState:'COMPLETED',notificationMessage:'Trip complete. GPS telemetry was recorded for both ends.'});this.mergeServer(result);return true}catch{return false}}
- async waitEvent(action){try{const result=await this.post('/api/trip/wait-event',{action});this.mergeServer(result);this.notify();return true}catch{return false}}
- async chooseSettlement(mode){try{const result=await this.post('/api/trip/settlement-mode',{mode});this.mergeServer(result);this.notify();return true}catch{return false}}
- async demoPayment(action,amountCents=null){try{const result=await this.post('/api/demo/payment',{action,amountCents});this.mergeServer(result);this.notify();return true}catch{return false}}
- async confirmCash(amount){const amountCents=Math.round(Number(amount)*100);try{const result=await this.post('/api/trip/cash-confirmation',{amountCents});this.mergeServer(result);this.notify();return true}catch{return false}}
- async externalPayment(action,amount){const amountCents=Math.round(Number(amount)*100);try{const result=await this.post('/api/trip/external-payment',{action,amountCents});this.mergeServer(result);this.notify();return true}catch{return false}}
- async resetTrip(){try{const result=await this.post('/api/trip/reset',{});this.events?.close();clearInterval(this.tripPollTimer);this.tripPollTimer=null;this.token=null;this.tripId=null;sessionStorage.removeItem(`trickhopper_${this.role}_token`);sessionStorage.removeItem(`trickhopper_${this.role}_trip`);this.state={...empty(),...(result.state||{}),...(result.shared||{}),activeMode:this.state.activeMode};if(this.role==='pilot')this.startRequestPolling();else this.startRiderAvailabilityPolling();this.notify()}catch{}}
+  constructor() {
+    this.listeners = new Set();
+    this.pendingFixes = {};
+    const activeMode = location.pathname.replace(/\/+$/, '') === '/driver' ? 'pilot' : 'rider';
+    this.state = { ...empty(), activeMode };
+    this.role = activeMode;
+    this.token = sessionStorage.getItem(`trickhopper_${this.role}_token`);
+    this.tripId = sessionStorage.getItem(`trickhopper_${this.role}_trip`);
+    this.checkBackend();
+    if (this.token) this.restore();
+    else if (this.role === 'pilot') this.startRequestPolling();
+    window.addEventListener('popstate', () => {
+      this.state.activeMode = location.pathname.replace(/\/+$/, '') === '/driver' ? 'pilot' : 'rider';
+      this.notify();
+    });
+  }
+
+  async checkBackend() {
+    try {
+      const r = await fetch('/api/health', { cache: 'no-store' });
+      const body = r.ok ? await r.json() : null;
+      this.state.backendMode = body?.mode || null;
+      this.state.backendStatus = body?.ok ? 'ready' : 'offline';
+    } catch {
+      this.state.backendStatus = 'offline';
+    }
+    this.notify();
+  }
+
+  startTripPolling() {
+    if (this.tripPollTimer) return;
+    this.tripPollTimer = setInterval(async () => {
+      if (!this.token) return;
+      try {
+        const r = await fetch('/api/trip/state', {
+          headers: { Authorization: `Bearer ${this.token}` },
+          cache: 'no-store',
+        });
+        if (r.ok) {
+          this.mergeServer(await r.json());
+          this.notify();
+        }
+      } catch {}
+    }, 2000);
+  }
+
+  startRequestPolling() {
+    if (this.queueTimer) return;
+    this.refreshOpenRequest();
+    this.queueTimer = setInterval(() => this.refreshOpenRequest(), 2000);
+  }
+
+  async refreshOpenRequest() {
+    if (this.role !== 'pilot' || this.token) return;
+    try {
+      const r = await fetch('/api/driver/request', { cache: 'no-store' });
+      if (!r.ok) return;
+      const data = await r.json();
+      if (data.pending) {
+        this.state.tripState = TRIP_STATES.REQUESTED;
+        this.state.liveLocations = { ...this.state.liveLocations, rider: data.pickup };
+        this.state.destination = data.destination;
+        this.state.passengerCount = data.passengerCount || 1;
+        this.state.routeQuote = data.routeQuote;
+        this.state.notificationMessage = 'A new pickup request is waiting. Accept it to connect and share live GPS.';
+      } else if (this.state.tripState === TRIP_STATES.REQUESTED) {
+        this.state = {
+          ...empty(),
+          activeMode: this.state.activeMode,
+          notificationMessage: data.tripState !== 'REQUESTED'
+            ? 'That request was accepted or closed.'
+            : 'No pickup request is currently waiting.',
+        };
+      }
+      this.notify();
+    } catch {}
+  }
+
+  async restore() {
+    try {
+      const r = await fetch('/api/trip/state', { headers: { Authorization: `Bearer ${this.token}` } });
+      if (r.status === 401) {
+        this.token = null;
+        this.tripId = null;
+        sessionStorage.removeItem(`trickhopper_${this.role}_token`);
+        sessionStorage.removeItem(`trickhopper_${this.role}_trip`);
+        if (this.role === 'pilot') this.startRequestPolling();
+        this.notify();
+        return;
+      }
+      if (!r.ok) return;
+      const data = await r.json();
+      this.mergeServer(data);
+      this.connectEvents();
+    } catch {}
+  }
+
+  async connectEvents() {
+    if (!this.token) return;
+    if (this.state.backendMode === 'shared-persistent-demo' || !window.EventSource) {
+      this.startTripPolling();
+      return;
+    }
+    this.events?.close();
+    try {
+      const r = await fetch('/api/trip/events-ticket', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${this.token}`, 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      if (!r.ok) {
+        this.startTripPolling();
+        return;
+      }
+      const { ticket } = await r.json();
+      this.events = new EventSource(`/api/trip/events?ticket=${encodeURIComponent(ticket)}`);
+      this.events.onmessage = e => {
+        try {
+          const p = JSON.parse(e.data);
+          if (
+            ['INIT', 'STATE_UPDATE', 'CASH_UPDATE', 'SETTLEMENT_UPDATE', 'DEMO_PAYMENT_UPDATE', 'EXTERNAL_PAYMENT_UPDATE'].includes(p.type)
+          ) {
+            this.mergeServer(p);
+          } else if (p.type === 'LOCATION_UPDATE') {
+            this.state.liveLocations = { ...this.state.liveLocations, [p.role]: p.location };
+            this.state.tracks = { ...this.state.tracks, [p.role]: p.track };
+            this.state.fixCounts = p.fixCounts;
+            this.state.tripDistanceMiles = p.tripDistanceMiles;
+            this.state.gpsActiveByRole = p.gpsActiveByRole || this.state.gpsActiveByRole;
+          } else if (p.type === 'LOCATION_STATUS') {
+            this.state.gpsActiveByRole = { ...this.state.gpsActiveByRole, [p.role]: p.active };
+            this.state.gpsErrors = { ...this.state.gpsErrors, [p.role]: p.error || null };
+          } else if (p.type === 'TRIP_RESET') {
+            this.token = null;
+            this.tripId = null;
+            sessionStorage.removeItem(`trickhopper_${this.role}_token`);
+            sessionStorage.removeItem(`trickhopper_${this.role}_trip`);
+            this.state = { ...empty(), activeMode: this.state.activeMode };
+            if (this.role === 'pilot') this.startRequestPolling();
+          }
+          this.notify();
+        } catch (err) {
+          console.error(err);
+        }
+      };
+      this.events.onerror = () => {
+        this.events?.close();
+        this.startTripPolling();
+      };
+    } catch {
+      this.startTripPolling();
+    }
+  }
+
+  mergeServer(data) {
+    this.state = {
+      ...this.state,
+      ...(data.state || data),
+      ...(data.shared || {}),
+      tripId: data.tripId || data.state?.tripId || this.state.tripId,
+      activeMode: this.state.activeMode,
+    };
+  }
+
+  getState() {
+    return this.state;
+  }
+  subscribe(fn) {
+    this.listeners.add(fn);
+    return () => this.listeners.delete(fn);
+  }
+  notify() {
+    for (const fn of this.listeners) fn(this.state);
+  }
+
+  async post(path, data = {}, token = this.token) {
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const r = await fetch(path, { method: 'POST', headers, body: JSON.stringify(data) });
+      const result = await r.json();
+      if (!r.ok) throw Error(result.error || 'Server rejected request');
+      return result;
+    } catch (e) {
+      this.state.gpsErrors = { ...this.state.gpsErrors, [this.state.activeMode]: e.message || 'Trip server connection lost.' };
+      this.notify();
+      throw e;
+    }
+  }
+
+  async recordGPS(role, fix) {
+    if (this.token) return this.sendLocation(role, fix);
+    this.pendingFixes[role] = fix;
+    return true;
+  }
+
+  discardPendingFix(role) {
+    delete this.pendingFixes[role];
+  }
+
+  async sendLocation(role, fix) {
+    try {
+      const result = await this.post('/api/telemetry/location', { role, ...fix });
+      this.mergeServer(result);
+      this.notify();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  setGPSRequesting(role, requesting) {
+    this.state.gpsRequestingByRole = { ...this.state.gpsRequestingByRole, [role]: requesting };
+    if (requesting) this.state.gpsErrors = { ...this.state.gpsErrors, [role]: null };
+    this.notify();
+  }
+
+  async setLocationStatus(role, active, error = null) {
+    this.state.gpsActiveByRole = { ...this.state.gpsActiveByRole, [role]: active };
+    this.state.gpsRequestingByRole = { ...this.state.gpsRequestingByRole, [role]: false };
+    this.state.gpsErrors = { ...this.state.gpsErrors, [role]: error };
+    this.notify();
+    if (this.token) {
+      try {
+        await this.post('/api/telemetry/status', { role, active, error });
+      } catch {}
+    }
+  }
+
+  capturePickup(fix) {
+    this.state.bookingPickup = fix;
+    this.state.liveLocations = { ...this.state.liveLocations, rider: fix };
+    this.state.routeQuote = null;
+    this.state.routeError = null;
+    this.notify();
+  }
+
+  setStopDestination(index, value, selectedPlace = null) {
+    const stops = [...(this.state.stops || [defaultStop(30)])];
+    if (!stops[index]) return;
+    stops[index] = {
+      ...stops[index],
+      destination: value,
+      selectedPlace,
+      suggestions: selectedPlace ? [] : stops[index].suggestions,
+    };
+    this.state.stops = stops;
+    if (index === 0) this.state.destinationText = value;
+    this.state.routeQuote = null;
+    this.state.routeError = null;
+    this.notify();
+  }
+
+  async suggestStopAddress(index, query) {
+    const q = String(query || '').trim();
+    const stops = [...(this.state.stops || [])];
+    if (!stops[index]) return;
+    if (q.length < 2) {
+      stops[index] = { ...stops[index], suggestions: [], suggesting: false };
+      this.state.stops = stops;
+      this.notify();
+      return;
+    }
+    try {
+      const res = await this.post('/api/address/suggest', { query: q }, null);
+      const currentStops = [...(this.state.stops || [])];
+      if (!currentStops[index]) return;
+      currentStops[index] = { ...currentStops[index], suggestions: res.results || [], suggesting: false };
+      this.state.stops = currentStops;
+      this.notify();
+    } catch {}
+  }
+
+  setStopWait(minutes, index = 0) {
+    const value = Number(minutes);
+    if (![15, 30, 60].includes(value)) return;
+    const stops = [...(this.state.stops || [defaultStop(30)])];
+    const idx = Number(index) || 0;
+    if (!stops[idx]) return;
+    stops[idx] = { ...stops[idx], waitMinutes: value };
+    this.state.stops = stops;
+    if (idx === 0) this.state.waitSelectionMinutes = value;
+    this.state.routeQuote = null;
+    this.state.routeError = null;
+    this.notify();
+  }
+
+  setWaitSelection(minutes) {
+    this.setStopWait(minutes, 0);
+  }
+
+  addStop() {
+    if ((this.state.stops || []).length >= 3) return;
+    this.state.stops = [...this.state.stops, defaultStop(15)];
+    this.state.routeQuote = null;
+    this.state.routeError = null;
+    this.notify();
+  }
+
+  removeStop(index) {
+    if ((this.state.stops || []).length <= 1) return;
+    this.state.stops = this.state.stops.filter((_, i) => i !== Number(index));
+    this.state.routeQuote = null;
+    this.state.routeError = null;
+    this.notify();
+  }
+
+  async quoteDestination() {
+    const pickup = this.state.bookingPickup;
+    const stops = this.state.stops || [];
+    if (!pickup) {
+      this.state.routeError = 'Share your pickup location first (or tap "Use Midtown Atlanta Demo GPS").';
+      this.notify();
+      return false;
+    }
+    if (stops.some(s => String(s.destination || '').trim().length < 4)) {
+      this.state.routeError = 'Enter a destination address or select an Atlanta venue for every hop.';
+      this.notify();
+      return false;
+    }
+    this.state.routeLoading = true;
+    this.state.routeError = null;
+    this.notify();
+    try {
+      const payload = {
+        pickup: { lat: pickup.lat, lng: pickup.lng },
+        destination: stops[0].destination.trim(),
+        waitMinutes: stops[0].waitMinutes,
+        stops: stops.map(s => ({
+          destination: s.destination.trim(),
+          waitMinutes: Number(s.waitMinutes) || 15,
+          coords: s.selectedPlace ? { lat: s.selectedPlace.lat, lng: s.selectedPlace.lng, label: s.selectedPlace.label } : null,
+        })),
+      };
+      const result = await this.post('/api/route/quote', payload, null);
+      this.state.routeQuote = result.quote;
+      this.state.routeLoading = false;
+      this.notify();
+      return true;
+    } catch (error) {
+      this.state.routeLoading = false;
+      this.state.routeError = error.message || 'Could not calculate a route. Please try again.';
+      this.notify();
+      return false;
+    }
+  }
+
+  async requestRide(launchAutoPilotAfter = false) {
+    const fix = this.pendingFixes.rider || this.state.bookingPickup;
+    const quote = this.state.routeQuote;
+    if (!fix) {
+      this.state.notificationMessage = 'Set pickup location first.';
+      this.notify();
+      return false;
+    }
+    if (!quote) {
+      this.state.routeError = 'Get a route estimate before requesting this wait-and-return ride.';
+      this.notify();
+      return false;
+    }
+    try {
+      const result = await this.post(
+        '/api/trip/create',
+        {
+          initialFix: fix,
+          quoteId: quote.quoteId,
+          passengerCount: this.state.passengerCount,
+          holdDeposit: this.state.holdDeposit,
+        },
+        null
+      );
+      this.token = result.riderToken;
+      this.tripId = result.tripId;
+      sessionStorage.setItem('trickhopper_rider_token', this.token);
+      sessionStorage.setItem('trickhopper_rider_trip', this.tripId);
+      this.mergeServer(result);
+      delete this.pendingFixes.rider;
+      this.connectEvents();
+      if (launchAutoPilotAfter) {
+        await this.startAutoPilot(true);
+      }
+      this.notify();
+      return true;
+    } catch (error) {
+      this.state.routeError = error.message || 'Could not create the ride request.';
+      this.notify();
+      return false;
+    }
+  }
+
+  async startAutoPilot(autoAdvance = true) {
+    try {
+      const result = await this.post('/api/demo/auto-pilot', { action: 'start', autoAdvance, intervalMs: 5000 });
+      this.mergeServer(result);
+      this.notify();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async stepAutoPilot() {
+    try {
+      const result = await this.post('/api/demo/auto-pilot', { action: 'step' });
+      this.mergeServer(result);
+      this.notify();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async pauseAutoPilot() {
+    try {
+      const result = await this.post('/api/demo/auto-pilot', { action: 'pause' });
+      this.mergeServer(result);
+      this.notify();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async claimOpenRequest(initialFix) {
+    try {
+      const result = await this.post(
+        '/api/trip/claim',
+        {
+          initialFix,
+          pilotName: this.state.pilotName,
+          pilotVehicle: this.state.pilotVehicle,
+          pilotPlate: this.state.pilotPlate,
+        },
+        null
+      );
+      this.token = result.pilotToken;
+      this.tripId = result.tripId;
+      sessionStorage.setItem('trickhopper_pilot_token', this.token);
+      sessionStorage.setItem('trickhopper_pilot_trip', this.tripId);
+      clearInterval(this.queueTimer);
+      this.queueTimer = null;
+      delete this.pendingFixes.pilot;
+      this.mergeServer(result);
+      this.connectEvents();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async completeRide() {
+    if (!['ACTIVE', 'RETURNING'].includes(this.state.tripState)) return false;
+    if (!this.state.simulationMode && (!fresh(this.state.liveLocations.pilot) || (this.state.fixCounts.pilot || 0) < 2)) {
+      this.state.notificationMessage = 'Pilot GPS stream needs a fresh fix and recorded telemetry before completion.';
+      this.notify();
+      return false;
+    }
+    try {
+      const result = await this.post('/api/trip/state', {
+        tripState: 'COMPLETED',
+        notificationMessage: 'Roundtrip complete! GPS telemetry and standby wait timers recorded.',
+      });
+      this.mergeServer(result);
+      this.notify();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async waitEvent(action) {
+    try {
+      const result = await this.post('/api/trip/wait-event', { action });
+      this.mergeServer(result);
+      this.notify();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async extendWait(addMinutes = 15) {
+    try {
+      const result = await this.post('/api/trip/extend-wait', { addMinutes });
+      this.mergeServer(result);
+      this.notify();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async sendPing(code, text = '') {
+    try {
+      const result = await this.post('/api/trip/ping', { code, text });
+      this.mergeServer(result);
+      this.notify();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async lockDeposit() {
+    try {
+      const result = await this.post('/api/trip/deposit', {});
+      this.mergeServer(result);
+      this.notify();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async chooseSettlement(mode) {
+    try {
+      const result = await this.post('/api/trip/settlement-mode', { mode });
+      this.mergeServer(result);
+      this.notify();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async demoPayment(action, amountCents = null) {
+    try {
+      const result = await this.post('/api/demo/payment', { action, amountCents });
+      this.mergeServer(result);
+      this.notify();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async confirmCash(amount) {
+    const amountCents = Math.round(Number(amount) * 100);
+    try {
+      const result = await this.post('/api/trip/cash-confirmation', { amountCents });
+      this.mergeServer(result);
+      this.notify();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async externalPayment(action, amount) {
+    const amountCents = Math.round(Number(amount) * 100);
+    try {
+      const result = await this.post('/api/trip/external-payment', { action, amountCents });
+      this.mergeServer(result);
+      this.notify();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async resetTrip() {
+    try {
+      const result = await this.post('/api/trip/reset', {});
+      this.events?.close();
+      this.token = null;
+      this.tripId = null;
+      sessionStorage.removeItem(`trickhopper_${this.role}_token`);
+      sessionStorage.removeItem(`trickhopper_${this.role}_trip`);
+      this.state = {
+        ...empty(),
+        ...(result.state || {}),
+        ...(result.shared || {}),
+        activeMode: this.state.activeMode,
+      };
+      if (this.role === 'pilot') this.startRequestPolling();
+      this.notify();
+    } catch {}
+  }
 }
-export const store=new Store();
+
+export const store = new Store();

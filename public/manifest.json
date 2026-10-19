@@ -1,8 +1,8 @@
 {
   "id": "/?source=pwa",
-  "name": "TRICKHOPPER",
+  "name": "TRICKHOPPER · Live GPS Pilot",
   "short_name": "TRICKHOPPER",
-  "description": "Plan your TRICKHOPPER ride in Atlanta.",
+  "description": "Local pilot prototype for shared live rider and pilot GPS tracking.",
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
@@ -31,5 +31,20 @@
       "purpose": "any maskable"
     }
   ],
-  "shortcuts": []
+  "shortcuts": [
+    {
+      "name": "Rider portal",
+      "short_name": "Rider",
+      "description": "Share live GPS for a pilot trip",
+      "url": "/?mode=rider",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Pilot Console",
+      "short_name": "Pilot Mode",
+      "description": "Pilot console with shared GPS telemetry",
+      "url": "/driver",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "any" }]
+    }
+  ]
 }
