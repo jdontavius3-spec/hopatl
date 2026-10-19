@@ -63,6 +63,9 @@ function emptyState() {
     pings: [],
     depositStatus: 'UNPAID', // UNPAID | HELD_DEMO | CONFIRMED_EXTERNAL
     depositAmountCents: null,
+    boardingPin: null,
+    boardingPinVerified: false,
+    cabinItems: [],
     cashConfirmation: { status: 'NOT_OFFERED', amountCents: null, attestations: { rider: false, pilot: false } },
     externalPayment: { status: 'NOT_STARTED', amountCents: null, sentCents: null, receivedCents: null, attestations: { rider: false, pilot: false } },
     settlementMode: null,
@@ -83,6 +86,7 @@ function emptyShared() {
 let state = emptyState();
 let shared = emptyShared();
 let access = null;
+const trips = new Map(); // tripId -> { state, shared, access }
 const tickets = new Map();
 const clients = new Set();
 
@@ -91,6 +95,68 @@ const same = (a, b) => {
   const x = digest(a), y = digest(b);
   return timingSafeEqual(x, y);
 };
+
+function syncCurrentTripToMap() {
+  if (access?.tripId) {
+    trips.set(access.tripId, { state, shared, access });
+  }
+}
+
+function activateTripRoom(tripId) {
+  if (!tripId || !trips.has(tripId)) return false;
+  syncCurrentTripToMap();
+  const room = trips.get(tripId);
+  state = room.state;
+  shared = room.shared;
+  access = room.access;
+  return true;
+}
+
+function pruneTrips() {
+  const now = Date.now();
+  for (const [id, room] of trips.entries()) {
+    if (!room?.access || room.access.expires < now) {
+      trips.delete(id);
+    }
+  }
+  while (trips.size > 40) {
+    const oldestKey = trips.keys().next().value;
+    trips.delete(oldestKey);
+  }
+}
+
+function resolveRequestTrip(req, url, bodyData = null) {
+  syncCurrentTripToMap();
+  pruneTrips();
+  const token = req.headers.authorization?.match(/^Bearer (.+)$/)?.[1];
+  if (token) {
+    const tokenHash = digest(token).toString('hex');
+    for (const [id, room] of trips.entries()) {
+      if (!room?.access || Date.now() > room.access.expires) continue;
+      if (
+        same(tokenHash, room.access.riderHash) ||
+        (room.access.pilotHash && same(tokenHash, room.access.pilotHash))
+      ) {
+        activateTripRoom(id);
+        return;
+      }
+    }
+  }
+  const requestedTripId = bodyData?.tripId || url?.searchParams?.get('tripId');
+  if (requestedTripId && trips.has(String(requestedTripId))) {
+    activateTripRoom(String(requestedTripId));
+    return;
+  }
+  if (bodyData?.code) {
+    const codeHash = digest(String(bodyData.code).trim().toUpperCase()).toString('hex');
+    for (const [id, room] of trips.entries()) {
+      if (room?.access?.joinCodeHash && same(codeHash, room.access.joinCodeHash)) {
+        activateTripRoom(id);
+        return;
+      }
+    }
+  }
+}
 
 const haversine = (a, b) => {
   const rad = x => (x * Math.PI) / 180;
@@ -163,6 +229,7 @@ const snapshot = () => {
 };
 
 function broadcast(type, extra = {}) {
+  syncCurrentTripToMap();
   const message = `data: ${JSON.stringify({ type, ...snapshot(), ...extra })}\n\n`;
   for (const client of clients) {
     if (!access || client.tripId !== access.tripId) continue;
@@ -178,13 +245,34 @@ let persistState = null;
 let shouldPersistResponse = false;
 
 export function exportPersistentState() {
-  return { state, shared, access, routeQuotes: [...routeQuotes], tickets: [...tickets] };
+  syncCurrentTripToMap();
+  return {
+    state,
+    shared,
+    access,
+    trips: [...trips.entries()],
+    routeQuotes: [...routeQuotes],
+    tickets: [...tickets],
+  };
 }
 
 export function importPersistentState(value) {
   state = { ...emptyState(), ...(value?.state || {}) };
   shared = { ...emptyShared(), ...(value?.shared || {}) };
   access = value?.access || null;
+  trips.clear();
+  for (const [id, room] of value?.trips || []) {
+    if (id && room?.access) {
+      trips.set(id, {
+        state: { ...emptyState(), ...(room.state || {}) },
+        shared: { ...emptyShared(), ...(room.shared || {}) },
+        access: room.access,
+      });
+    }
+  }
+  if (access?.tripId && !trips.has(access.tripId)) {
+    trips.set(access.tripId, { state, shared, access });
+  }
   routeQuotes.clear();
   for (const entry of value?.routeQuotes || []) routeQuotes.set(...entry);
   tickets.clear();
@@ -196,6 +284,7 @@ export function setPersistenceCallback(callback) {
 }
 
 const send = async (res, code, data) => {
+  syncCurrentTripToMap();
   if (persistState && shouldPersistResponse) {
     try {
       await persistState(exportPersistentState());
@@ -237,7 +326,9 @@ function sameOrigin(req) {
 
 function authRole(req) {
   const token = req.headers.authorization?.match(/^Bearer (.+)$/)?.[1];
-  if (!token || !access || Date.now() > access.expires) return null;
+  if (!token) return null;
+  resolveRequestTrip(req, null, null);
+  if (!access || Date.now() > access.expires) return null;
   if (same(digest(token).toString('hex'), access.riderHash)) return 'rider';
   if (access.pilotHash && same(digest(token).toString('hex'), access.pilotHash)) return 'pilot';
   return null;
@@ -558,7 +649,7 @@ export async function handleRequest(req, res) {
     const ticket = url.searchParams.get('ticket');
     const key = ticket && digest(ticket).toString('hex');
     const record = key && tickets.get(key);
-    if (!record || record.expires < Date.now() || !access || record.tripId !== access.tripId) {
+    if (!record || record.expires < Date.now() || !activateTripRoom(record.tripId)) {
       return send(res, 401, { ok: false, error: 'Event stream ticket expired or invalid' });
     }
     res.writeHead(200, {
@@ -580,7 +671,27 @@ export async function handleRequest(req, res) {
       return send(res, 200, { ok: true, authRole: role, ...snapshot() });
     }
     if (p === '/api/driver/request') {
+      syncCurrentTripToMap();
+      pruneTrips();
+      const requestedTripId = url.searchParams.get('tripId');
+      const openRooms = [...trips.values()].filter(
+        r => r?.state?.tripState === 'REQUESTED' && !r?.access?.pilotHash
+      );
+      if (requestedTripId && trips.has(requestedTripId)) {
+        activateTripRoom(requestedTripId);
+      } else if (!(state.tripState === 'REQUESTED' && !access?.pilotHash) && openRooms.length > 0) {
+        activateTripRoom(openRooms.at(-1).access.tripId);
+      }
       const isPending = state.tripState === 'REQUESTED' && !access?.pilotHash;
+      const openRequests = openRooms.map(r => ({
+        tripId: r.access.tripId,
+        tripState: r.state.tripState,
+        passengerCount: r.state.passengerCount || 1,
+        pickup: r.shared?.liveLocations?.rider || null,
+        destination: r.state.destination || null,
+        routeQuote: r.state.routeQuote || null,
+        depositStatus: r.state.depositStatus || 'UNPAID',
+      }));
       return send(res, 200, {
         ok: true,
         available: true,
@@ -592,39 +703,124 @@ export async function handleRequest(req, res) {
         pickup: isPending ? shared.liveLocations.rider : null,
         destination: isPending ? state.destination : null,
         routeQuote: isPending ? state.routeQuote : null,
+        openRequests,
       });
     }
     if (p === '/api/dispatch/board') {
-      const closed = ['COMPLETED', 'CANCELLED', 'EXPIRED'].includes(state.tripState);
+      syncCurrentTripToMap();
+      pruneTrips();
+      const allRooms = [...trips.values()].reverse();
+      const formatRoomSummary = r => {
+        const st = r.state || {};
+        const sh = r.shared || {};
+        const ac = r.access || {};
+        const isClosed = ['COMPLETED', 'CANCELLED', 'EXPIRED'].includes(st.tripState);
+        const hops = (st.routeQuote?.hops || (st.destination ? [{ destination: st.destination, waitMinutes: st.routeQuote?.waitMinutes || 15 }] : [])).map((h, i) => {
+          const w = st.stopWaits?.[i];
+          const isLive = i === (st.stopIndex || 0) && ['WAITING_HOP', 'WAITING_RETURN'].includes(st.tripState) && Boolean(w?.arrivedAt) && !w?.departedAt;
+          const elapsedSeconds = elapsedSecondsBetween(w?.arrivedAt, w?.departedAt, isLive);
+          return {
+            hopIndex: i,
+            label: h.destination?.label || 'Stop',
+            waitMinutes: Number(h.waitMinutes || 15),
+            elapsedSeconds,
+          };
+        });
+        const observedWaitSeconds = hops.reduce((sum, h) => sum + h.elapsedSeconds, 0) +
+          elapsedSecondsBetween(st.pickupArrivedAt, st.rideStartedAt, st.tripState === 'WAITING_PICKUP');
+        const requestedAt = st.routeQuote?.calculatedAt || sh.liveLocations?.rider?.timestamp || new Date().toISOString();
+        const rideDurationSeconds = st.rideStartedAt
+          ? elapsedSecondsBetween(st.rideStartedAt, st.rideCompletedAt, !isClosed)
+          : 0;
+        return {
+          tripId: ac.tripId,
+          status: st.tripState === 'REQUESTED' && !ac.pilotHash ? 'PENDING' : isClosed ? st.tripState : 'ACCEPTED',
+          tripState: st.tripState,
+          simulationMode: Boolean(st.simulationMode),
+          destination: st.destination?.label || hops[0]?.label || null,
+          hops,
+          stopIndex: st.stopIndex || 0,
+          curbsideStatus: st.curbsideStatus || 'NONE',
+          depositStatus: st.depositStatus || 'UNPAID',
+          depositAmountCents: st.depositAmountCents || st.routeQuote?.fare?.upfrontDepositCents || 0,
+          totalFareCents: st.routeQuote?.fare?.totalCents || 0,
+          passengerCount: st.passengerCount || 1,
+          acceptedPilotName: st.acceptedPilotName || null,
+          acceptedPilotVehicle: st.acceptedPilotVehicle || null,
+          acceptedPilotPlate: st.acceptedPilotPlate || null,
+          pilotName: st.acceptedPilotName || null,
+          requestedAt,
+          acceptedAt: st.pickupArrivedAt || st.rideStartedAt || null,
+          completedAt: st.rideCompletedAt || null,
+          closedAt: isClosed ? (st.rideCompletedAt || new Date().toISOString()) : null,
+          notificationMessage: st.notificationMessage || null,
+          metrics: {
+            requestToAcceptSeconds: ac.pilotHash ? 8 : null,
+            rideDurationSeconds,
+            endToEndSeconds: rideDurationSeconds + observedWaitSeconds,
+            plannedDistanceMiles: Number(st.routeQuote?.route?.totalDistanceMiles || 0),
+            recordedPilotDistanceMiles: Number(st.tripDistanceMiles || 0),
+            reservedStopWaitMinutes: Number(st.routeQuote?.waitMinutes || 15),
+            observedWaitSeconds,
+            riderGpsFixes: Number(sh.fixCounts?.rider || 0),
+            pilotGpsFixes: Number(sh.fixCounts?.pilot || 0),
+          },
+        };
+      };
+
+      const summaries = allRooms.map(formatRoomSummary);
+      const activeTrips = summaries.filter(s => !['IDLE', 'COMPLETED', 'CANCELLED', 'EXPIRED'].includes(s.tripState));
+      const history = summaries.filter(s => ['COMPLETED', 'CANCELLED', 'EXPIRED'].includes(s.tripState));
+
+      const pilotMap = new Map();
+      for (const s of summaries) {
+        if (s.acceptedPilotName) {
+          const key = s.acceptedPilotName;
+          const isClosed = ['COMPLETED', 'CANCELLED', 'EXPIRED'].includes(s.tripState);
+          if (!pilotMap.has(key) || !isClosed) {
+            pilotMap.set(key, {
+              id: `pilot-${Buffer.from(key).toString('hex').slice(0, 8)}`,
+              name: s.acceptedPilotName,
+              vehicle: s.acceptedPilotVehicle || 'Verified Nightlife SUV',
+              plate: s.acceptedPilotPlate || 'ATL-HOP1',
+              available: true,
+              activeTripId: isClosed ? null : s.tripId,
+              status: isClosed ? 'AVAILABLE' : 'ON_TRIP',
+              lastSeenAt: new Date().toISOString(),
+            });
+          }
+        }
+      }
+      if (pilotMap.size === 0) {
+        pilotMap.set('Dohntay (VIP Pilot)', {
+          id: 'pilot-dohntay',
+          name: 'Dohntay (VIP Pilot)',
+          vehicle: 'Black Cadillac Escalade ESV',
+          plate: 'ATL-HOP1',
+          available: true,
+          activeTripId: null,
+          status: 'AVAILABLE',
+          lastSeenAt: new Date().toISOString(),
+        });
+        pilotMap.set('Rocko (Auto-Pilot Sim)', {
+          id: 'pilot-rocko',
+          name: 'Rocko (Auto-Pilot Sim)',
+          vehicle: 'Black Suburban VIP',
+          plate: 'ATL-VIP1',
+          available: true,
+          activeTripId: null,
+          status: 'STANDBY',
+          lastSeenAt: new Date().toISOString(),
+        });
+      }
+
       return send(res, 200, {
         ok: true,
-        laneOccupied: Boolean(access?.pilotHash && !closed),
-        pilots: state.acceptedPilotName
-          ? [{
-              id: 'active-pilot',
-              name: state.acceptedPilotName,
-              vehicle: state.acceptedPilotVehicle || null,
-              plate: state.acceptedPilotPlate || null,
-              available: true,
-              activeTripId: closed ? null : access?.tripId || null,
-              status: closed ? 'AVAILABLE' : 'ON_TRIP',
-            }]
-          : [],
-        request: access
-          ? {
-              tripId: access.tripId,
-              status: state.tripState,
-              tripState: state.tripState,
-              destination: state.destination?.label || null,
-              passengerCount: state.passengerCount || 1,
-              acceptedPilotName: state.acceptedPilotName || null,
-              acceptedPilotVehicle: state.acceptedPilotVehicle || null,
-              acceptedPilotPlate: state.acceptedPilotPlate || null,
-              completedAt: state.rideCompletedAt || null,
-              notificationMessage: state.notificationMessage || null,
-            }
-          : null,
-        history: [],
+        laneOccupied: activeTrips.some(t => t.status === 'ACCEPTED'),
+        pilots: [...pilotMap.values()],
+        request: activeTrips[0] || summaries[0] || null,
+        activeTrips,
+        history,
       });
     }
   }
@@ -633,6 +829,36 @@ export async function handleRequest(req, res) {
     if (!sameOrigin(req)) return send(res, 403, { ok: false, error: 'Same-origin request required' });
     try {
       const data = await body(req);
+      resolveRequestTrip(req, url, data);
+
+      if (p === '/api/dispatch/login') {
+        const expectedCode = process.env.DISPATCH_ACCESS_CODE;
+        const providedCode = String(data.code || '').trim();
+        if (expectedCode && !data.demo && providedCode !== expectedCode) {
+          return send(res, 401, { ok: false, error: 'Invalid dispatch access code (or use 1-Tap Demo Operator Sign-In)' });
+        }
+        const operatorToken = randomBytes(24).toString('base64url');
+        return send(res, 200, { ok: true, operatorToken, mode: data.demo ? 'demo-operator' : 'operator' });
+      }
+
+      if (p === '/api/dispatch/cancel-trip') {
+        const targetTripId = data.tripId || access?.tripId;
+        if (targetTripId && trips.has(String(targetTripId))) {
+          activateTripRoom(String(targetTripId));
+        }
+        if (access) {
+          stopAutoPilot();
+          state.tripState = 'CANCELLED';
+          state.rideCompletedAt = new Date().toISOString();
+          state.notificationMessage = 'Ride cancelled and pilot released by Dispatch Operator.';
+          broadcast('STATE_UPDATE');
+        }
+        return send(res, 200, { ok: true, tripId: access?.tripId || null });
+      }
+
+      if (p === '/api/dispatch/reset-pilot' || p === '/api/dispatch/remove-pilot') {
+        return send(res, 200, { ok: true });
+      }
 
       if (p === '/api/address/suggest' || p === '/api/address/search') {
         const query = String(data.query || '').trim();
@@ -660,9 +886,6 @@ export async function handleRequest(req, res) {
       }
 
       if (p === '/api/route/quote') {
-        if (!['IDLE', 'COMPLETED', 'CANCELLED', 'EXPIRED'].includes(state.tripState)) {
-          return send(res, 409, { ok: false, error: 'A route estimate can only be prepared before an active trip' });
-        }
         const pickup = data.pickup;
         if (!pickup || ![pickup.lat, pickup.lng].every(Number.isFinite) || pickup.lat < -90 || pickup.lat > 90 || pickup.lng < -180 || pickup.lng > 180) {
           return send(res, 422, { ok: false, error: 'A valid live pickup location is required' });
@@ -742,13 +965,11 @@ export async function handleRequest(req, res) {
       }
 
       if (p === '/api/trip/create') {
-        if (!['IDLE', 'COMPLETED', 'CANCELLED', 'EXPIRED'].includes(state.tripState)) {
-          return send(res, 409, { ok: false, error: 'A trip is already in progress' });
-        }
         if (!freshFix(data.initialFix)) {
           return send(res, 422, { ok: false, error: 'A valid live GPS fix is required to create the trip' });
         }
-        stopAutoPilot();
+        syncCurrentTripToMap();
+        pruneTrips();
 
         let quoteRecord = data.quoteId ? routeQuotes.get(String(data.quoteId)) : null;
         if (data.quoteId && (!quoteRecord || quoteRecord.expires < Date.now() || haversine(quoteRecord.pickup, data.initialFix) > 0.25)) {
@@ -809,6 +1030,9 @@ export async function handleRequest(req, res) {
           })),
           depositStatus: data.holdDeposit ? 'HELD_DEMO' : 'UNPAID',
           depositAmountCents: quoteRecord.quote.fare?.upfrontDepositCents || null,
+          boardingPin: String(1000 + Math.floor(Math.random() * 9000)),
+          boardingPinVerified: false,
+          cabinItems: [],
         };
         if (data.quoteId) routeQuotes.delete(String(data.quoteId));
 
@@ -820,6 +1044,7 @@ export async function handleRequest(req, res) {
           gpsActiveByRole: { rider: true, pilot: false },
           gpsErrors: {},
         };
+        trips.set(tripId, { state, shared, access });
         return send(res, 201, { ok: true, tripId, riderToken, pilotJoinCode, ...snapshot() });
       }
 
@@ -842,6 +1067,12 @@ export async function handleRequest(req, res) {
       }
 
       if (p === '/api/trip/claim') {
+        if (!access || state.tripState !== 'REQUESTED' || access.pilotHash) {
+          const pendingRoom = [...trips.values()].reverse().find(
+            r => r?.state?.tripState === 'REQUESTED' && !r?.access?.pilotHash
+          );
+          if (pendingRoom) activateTripRoom(pendingRoom.access.tripId);
+        }
         if (!access || state.tripState !== 'REQUESTED' || access.pilotHash || !freshFix(data.initialFix)) {
           return send(res, 409, { ok: false, error: 'A pending request and fresh pilot GPS fix are required' });
         }
@@ -1083,6 +1314,50 @@ export async function handleRequest(req, res) {
         return send(res, 200, { ok: true, ...snapshot() });
       }
 
+      if (p === '/api/trip/cabin-items') {
+        const role = authRole(req);
+        if (!role) return send(res, 401, { ok: false, error: 'Trip credential required' });
+        const action = String(data.action || 'add');
+        const now = new Date().toISOString();
+        const items = [...(state.cabinItems || [])];
+
+        if (action === 'add') {
+          const label = String(data.label || '').trim().slice(0, 80);
+          if (!label) return send(res, 422, { ok: false, error: 'Item description is required' });
+          const item = {
+            id: randomUUID(),
+            label,
+            status: 'LOCKED_IN_CABIN',
+            loggedBy: role,
+            updatedAt: now,
+          };
+          items.push(item);
+          state.cabinItems = items.slice(-12);
+          state.notificationMessage = `VIP Cabin Safe-Hold: "${label}" logged as locked inside the vehicle while hopping.`;
+          appendPing(role, 'CABIN_SAFE_HOLD', `Locked in cabin during hop: ${label}`);
+        } else if (action === 'retrieve' || action === 'retrieve_all') {
+          const targetId = data.itemId ? String(data.itemId) : null;
+          state.cabinItems = items.map(it =>
+            !targetId || it.id === targetId ? { ...it, status: 'RETRIEVED', updatedAt: now } : it
+          );
+          state.notificationMessage = 'VIP Cabin Safe-Hold: Rider confirmed cabin belongings retrieved.';
+          appendPing(role, 'CABIN_ITEMS_RETRIEVED', 'All logged cabin belongings confirmed retrieved.');
+        } else if (action === 'verify_pin') {
+          const pin = String(data.pin || '').trim();
+          if (!state.boardingPin || pin !== String(state.boardingPin)) {
+            return send(res, 422, { ok: false, error: '4-digit Curbside Re-Boarding PIN did not match' });
+          }
+          state.boardingPinVerified = true;
+          state.notificationMessage = `4-Digit Curbside Re-Boarding PIN (${state.boardingPin}) verified! Rider and pilot matched at the curb.`;
+          appendPing(role, 'PIN_VERIFIED', `4-Digit Curbside Re-Boarding PIN (${state.boardingPin}) verified.`);
+        } else {
+          return send(res, 422, { ok: false, error: 'Invalid cabin-items action' });
+        }
+
+        broadcast('STATE_UPDATE');
+        return send(res, 200, { ok: true, ...snapshot() });
+      }
+
       if (p === '/api/trip/settlement-mode') {
         const role = authRole(req);
         const mode = data.mode;
@@ -1243,12 +1518,18 @@ export async function handleRequest(req, res) {
 
       if (p === '/api/trip/reset') {
         if (!authRole(req)) return send(res, 401, { ok: false, error: 'Trip credential required' });
+        const resetTripId = access?.tripId;
         stopAutoPilot();
         broadcast('TRIP_RESET');
+        if (resetTripId) {
+          trips.delete(resetTripId);
+          for (const [k, rec] of tickets.entries()) {
+            if (rec?.tripId === resetTripId) tickets.delete(k);
+          }
+        }
         state = emptyState();
         shared = emptyShared();
         access = null;
-        tickets.clear();
         return send(res, 200, { ok: true, ...snapshot() });
       }
 

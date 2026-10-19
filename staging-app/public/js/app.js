@@ -98,15 +98,29 @@ function renderCurbsideAndComms(s, role) {
   const inStopWait = ['WAITING_HOP', 'WAITING_RETURN'].includes(s.tripState);
   const pings = (s.pings || []).slice(-4).reverse();
 
+  const cabinItems = s.cabinItems || [];
+  const hasLockedItems = cabinItems.some(it => it.status === 'LOCKED_IN_CABIN');
+
   return `<section class="card curbside-card">
-    <div class="eyebrow">CURBSIDE STAGING & PRIVATE IN-APP COMMS · NO PHONE # EXPOSED</div>
+    <div class="eyebrow">CURBSIDE STAGING, RE-BOARDING PIN & VIP CABIN SAFE-HOLD</div>
     <div class="curbside-status-banner" style="border-color:${curb.color}66">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
         <strong style="color:${curb.color};font-size:13px">${curb.label}</strong>
-        ${s.acceptedPilotPlate ? `<span class="live-pill">PLATE: ${esc(s.acceptedPilotPlate)}</span>` : ''}
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${s.acceptedPilotPlate ? `<span class="live-pill">PLATE: ${esc(s.acceptedPilotPlate)}</span>` : ''}
+          ${s.boardingPin ? `<span class="live-pill" style="border-color:#ff62b6;color:#ffd5ec">RE-BOARDING PIN: ${esc(s.boardingPin)} ${s.boardingPinVerified ? '✓' : ''}</span>` : ''}
+        </div>
       </div>
       <p class="cash-note" style="margin-top:4px;color:var(--text-secondary)">${curb.desc}</p>
     </div>
+
+    ${s.boardingPin && !s.boardingPinVerified ? `
+      <div style="margin-top:10px">
+        <button type="button" class="btn-secondary" id="btn-verify-pin">
+          🔐 Verify 4-Digit Curbside Re-Boarding PIN (${esc(s.boardingPin)}) ✓
+        </button>
+      </div>
+    ` : ''}
 
     ${role === 'rider' && inStopWait ? `
       <div class="curbside-action-grid" style="margin-top:12px">
@@ -132,6 +146,31 @@ function renderCurbsideAndComms(s, role) {
         <button type="button" class="btn-secondary" id="btn-pilot-hazards">🚨 At Curb · Hazards On</button>
       </div>
     ` : ''}
+
+    <div class="spot-picks" style="margin-top:14px">
+      <span class="eyebrow">VIP CABIN SAFE-HOLD · BELONGINGS LOCKED IN VEHICLE DURING HOPS</span>
+      <div class="spot-pick-list" style="margin-top:6px">
+        <button type="button" class="spot-pick" data-cabin-add="Coat / Jacket">+ 🧥 Coat / Jacket</button>
+        <button type="button" class="spot-pick" data-cabin-add="Heels / Extra Shoes">+ 👠 Heels / Shoes</button>
+        <button type="button" class="spot-pick" data-cabin-add="VIP Bag / Purse">+ 👜 Bag / Purse</button>
+      </div>
+      ${cabinItems.length ? `
+        <div class="ping-feed" style="margin-top:8px">
+          ${cabinItems.map(it => `
+            <div class="ping-item">
+              <span class="ping-role ${it.status === 'LOCKED_IN_CABIN' ? 'rider' : 'pilot'}">${it.status === 'LOCKED_IN_CABIN' ? 'LOCKED' : 'RETRIEVED'}</span>
+              <span>${esc(it.label)}</span>
+              <small>${new Date(it.updatedAt).toLocaleTimeString()}</small>
+            </div>
+          `).join('')}
+          ${hasLockedItems ? `
+            <button type="button" class="btn-secondary" id="btn-cabin-retrieve-all" style="margin-top:8px">
+              ✅ Confirm All Cabin Belongings Retrieved
+            </button>
+          ` : ''}
+        </div>
+      ` : `<p class="cash-note" style="margin-top:6px">Leaving a jacket, heels, or bag in the SUV while you hop? Log it above so both portals track it until final drop-off.</p>`}
+    </div>
 
     ${pings.length ? `
       <div class="ping-feed" style="margin-top:12px">
@@ -649,7 +688,20 @@ function render() {
 
   if (pilot && s.tripState === TRIP_STATES.REQUESTED && !store.token) {
     const hops = s.routeQuote?.hops || (s.destination ? [{ destination: s.destination, waitMinutes: s.routeQuote?.waitMinutes || 15 }] : []);
+    const openQueue = s.openRequests || [];
     controls = `<section class="card">
+      ${openQueue.length > 1 ? `
+        <div class="spot-picks" style="margin-bottom:12px">
+          <span class="eyebrow">OPEN FLEET QUEUE (${openQueue.length} ACTIVE REQUESTS)</span>
+          <div class="spot-pick-list">
+            ${openQueue.map((reqItem, idx) => `
+              <button type="button" class="spot-pick ${reqItem.tripId === s.tripId ? 'active' : ''}" data-select-open-trip="${esc(reqItem.tripId)}">
+                #${idx + 1} · ${esc((reqItem.destination?.label || 'Stop').split(',')[0])} (${money(reqItem.routeQuote?.fare?.totalCents || 0)})
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      ` : ''}
       <div class="eyebrow">NEW NIGHTLIFE ROUNDTRIP REQUEST · ${s.passengerCount || 1} PASSENGER(S)</div>
       <h2 class="cash-title">${hops.length}-Hop Roundtrip · ${money(s.routeQuote?.fare?.totalCents || 0)} Est.</h2>
       <div class="route-itinerary" style="margin:10px 0">
@@ -809,6 +861,12 @@ function render() {
     sessionStorage.setItem('trickhopper_pilot_vehicle', e.target.value);
   });
 
+  document.querySelectorAll('[data-select-open-trip]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      store.selectOpenRequest(btn.dataset.selectOpenTrip);
+    });
+  });
+
   document.getElementById('accept-request')?.addEventListener('click', () => {
     telemetry.startLiveGPS('pilot', fix => store.claimOpenRequest(fix));
   });
@@ -823,7 +881,7 @@ function render() {
   document.getElementById('start-return-leg')?.addEventListener('click', () => store.waitEvent('start_return'));
   document.getElementById('complete-ride')?.addEventListener('click', () => store.completeRide());
 
-  // Curbside Summon, Wait Extension, and In-App Pings
+  // Curbside Summon, Wait Extension, Cabin Safe-Hold, Re-Boarding PIN, and In-App Pings
   document.getElementById('btn-summon-curb')?.addEventListener('click', () => store.sendPing('SUMMON_CURB'));
   document.getElementById('btn-extend-15')?.addEventListener('click', () => store.extendWait(15));
   document.getElementById('btn-ping-inside')?.addEventListener('click', () => store.sendPing('STILL_INSIDE'));
@@ -831,6 +889,16 @@ function render() {
   document.getElementById('btn-pilot-staged')?.addEventListener('click', () => store.sendPing('STAGED_NEARBY'));
   document.getElementById('btn-pilot-pulling')?.addEventListener('click', () => store.sendPing('PULLING_TO_CURB'));
   document.getElementById('btn-pilot-hazards')?.addEventListener('click', () => store.sendPing('AT_CURB_HAZARDS'));
+  document.getElementById('btn-verify-pin')?.addEventListener('click', () => {
+    const pin = store.getState().boardingPin;
+    if (pin) store.verifyBoardingPin(pin);
+  });
+  document.querySelectorAll('[data-cabin-add]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      store.addCabinItem(btn.dataset.cabinAdd);
+    });
+  });
+  document.getElementById('btn-cabin-retrieve-all')?.addEventListener('click', () => store.retrieveCabinItems());
 
   // Settlement listeners
   document.getElementById('choose-cash')?.addEventListener('click', () => store.chooseSettlement('CASH'));

@@ -43,6 +43,9 @@ const empty = () => ({
   holdDeposit: true,
   depositStatus: 'UNPAID',
   depositAmountCents: null,
+  boardingPin: null,
+  boardingPinVerified: false,
+  cabinItems: [],
   curbsideStatus: 'NONE',
   pings: [],
   stopIndex: 0,
@@ -50,6 +53,8 @@ const empty = () => ({
   routeQuote: null,
   routeLoading: false,
   routeError: null,
+  openRequests: [],
+  selectedOpenTripId: null,
   pilotName: sessionStorage.getItem('trickhopper_pilot_name') || 'Dohntay (VIP Pilot)',
   pilotVehicle: sessionStorage.getItem('trickhopper_pilot_vehicle') || 'Black Cadillac Escalade ESV',
   pilotPlate: sessionStorage.getItem('trickhopper_pilot_plate') || 'ATL-HOP1',
@@ -113,23 +118,37 @@ export class Store {
     this.queueTimer = setInterval(() => this.refreshOpenRequest(), 2000);
   }
 
+  selectOpenRequest(tripId) {
+    this.state.selectedOpenTripId = tripId || null;
+    this.refreshOpenRequest();
+  }
+
   async refreshOpenRequest() {
     if (this.role !== 'pilot' || this.token) return;
     try {
-      const r = await fetch('/api/driver/request', { cache: 'no-store' });
+      const query = this.state.selectedOpenTripId
+        ? `?tripId=${encodeURIComponent(this.state.selectedOpenTripId)}`
+        : '';
+      const r = await fetch(`/api/driver/request${query}`, { cache: 'no-store' });
       if (!r.ok) return;
       const data = await r.json();
+      this.state.openRequests = Array.isArray(data.openRequests) ? data.openRequests : [];
       if (data.pending) {
         this.state.tripState = TRIP_STATES.REQUESTED;
+        this.state.tripId = data.tripId || null;
         this.state.liveLocations = { ...this.state.liveLocations, rider: data.pickup };
         this.state.destination = data.destination;
         this.state.passengerCount = data.passengerCount || 1;
         this.state.routeQuote = data.routeQuote;
-        this.state.notificationMessage = 'A new pickup request is waiting. Accept it to connect and share live GPS.';
+        this.state.notificationMessage =
+          this.state.openRequests.length > 1
+            ? `${this.state.openRequests.length} open pickup requests in the fleet queue. Select any request and accept to connect.`
+            : 'A new pickup request is waiting. Accept it to connect and share live GPS.';
       } else if (this.state.tripState === TRIP_STATES.REQUESTED) {
         this.state = {
           ...empty(),
           activeMode: this.state.activeMode,
+          openRequests: this.state.openRequests,
           notificationMessage: data.tripState !== 'REQUESTED'
             ? 'That request was accepted or closed.'
             : 'No pickup request is currently waiting.',
@@ -484,11 +503,12 @@ export class Store {
     }
   }
 
-  async claimOpenRequest(initialFix) {
+  async claimOpenRequest(initialFix, targetTripId = null) {
     try {
       const result = await this.post(
         '/api/trip/claim',
         {
+          tripId: targetTripId || this.state.selectedOpenTripId || this.state.tripId || null,
           initialFix,
           pilotName: this.state.pilotName,
           pilotVehicle: this.state.pilotVehicle,
@@ -567,6 +587,42 @@ export class Store {
   async lockDeposit() {
     try {
       const result = await this.post('/api/trip/deposit', {});
+      this.mergeServer(result);
+      this.notify();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async addCabinItem(label) {
+    try {
+      const result = await this.post('/api/trip/cabin-items', { action: 'add', label });
+      this.mergeServer(result);
+      this.notify();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async retrieveCabinItems(itemId = null) {
+    try {
+      const result = await this.post('/api/trip/cabin-items', {
+        action: itemId ? 'retrieve' : 'retrieve_all',
+        itemId,
+      });
+      this.mergeServer(result);
+      this.notify();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async verifyBoardingPin(pin) {
+    try {
+      const result = await this.post('/api/trip/cabin-items', { action: 'verify_pin', pin });
       this.mergeServer(result);
       this.notify();
       return true;
