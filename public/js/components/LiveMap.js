@@ -8,13 +8,12 @@ let leafletRetryCount = 0;
 
 /** Render an actual geographic map. Locations and tracks are device GPS only. */
 export function renderLiveMap(state) {
-  const label = state.simulationMode ? 'SIMULATED GPS' : 'LIVE GPS';
   const now=Date.now();
   const recentByRole=Object.fromEntries(['rider','pilot'].map(role=>[role,Boolean(state.liveLocations?.[role]&&now-Date.parse(state.liveLocations[role].timestamp)<30000)]));
-  const liveLabel=state.simulationMode?'SIMULATION':(['rider','pilot'].filter(role=>recentByRole[role]).map(role=>role.toUpperCase()).join(' + ')||'WAITING');
-  const stale= !state.simulationMode && !Object.values(recentByRole).some(Boolean);
-  return `<section class="card live-map" aria-label="Shared ${label} map">
-    <div class="live-map-heading"><div><div class="eyebrow">SHARED ${label}</div><strong>Live trip map</strong></div><span class="map-live-status ${stale?'stale':''}">${liveLabel}${stale?' · GPS STALE':''}</span></div>
+  const liveLabel=['rider','pilot'].filter(role=>recentByRole[role]).map(role=>role.toUpperCase()).join(' + ')||'WAITING';
+  const stale=!Object.values(recentByRole).some(Boolean);
+  return `<section class="card live-map" aria-label="Shared LIVE GPS map">
+    <div class="live-map-heading"><div><div class="eyebrow">SHARED LIVE GPS</div><strong>Live trip map</strong></div><span class="map-live-status ${stale?'stale':''}">${liveLabel}${stale?' · GPS STALE':''}</span></div>
     <div id="live-map" class="live-map-canvas" role="region" aria-label="Map showing shared rider and pilot GPS positions">Loading street map…</div>
     <div class="legend"><span><i class="map-key rider-key"></i>Rider</span><span><i class="map-key pilot-key"></i>Pilot</span></div>
     <div class="map-coordinate-row">${['rider','pilot'].map(role => { const p=state.liveLocations?.[role],fresh=recentByRole[role]; return `<div><b>${role==='rider'?'Rider':'Pilot'} · ${fresh?'LIVE':'STALE'}</b><span>${p ? `${Number(p.lat).toFixed(5)}, ${Number(p.lng).toFixed(5)}` : 'Waiting for GPS'}</span><small>${p ? `±${Math.round(p.accuracy)} m · ${new Date(p.timestamp).toLocaleTimeString()}` : 'No location received yet'}</small></div>`; }).join('')}</div>
