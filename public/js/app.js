@@ -2,976 +2,168 @@ import { store, TRIP_STATES } from './store.js';
 import { telemetry } from './telemetry.js';
 import { renderHeader } from './components/Header.js';
 import { renderLiveMap, updateLiveMap } from './components/LiveMap.js';
-import { RATE_CARD, WAIT_TIERS, getWaitBlockCents, calculateFare, money } from './pricing.js';
+import { RATE_CARD, calculateFare, money } from './pricing.js';
 
-const esc = value =>
-  String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const esc = (value) => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const formatRequestCountdown = expiresAt => {
+  const seconds = Math.max(0, Math.ceil((Number(expiresAt) - Date.now()) / 1000));
+  return Number.isFinite(seconds) && seconds > 0 ? `${String(Math.floor(seconds / 60)).padStart(2,'0')}:${String(seconds % 60).padStart(2,'0')}` : 'Checking status…';
+};
+function renderRiderSmsContact(s){return `<section class="cash-confirmation" style="padding:14px;margin:12px 0"><label class="eyebrow" for="rider-phone">MOBILE NUMBER FOR RIDE UPDATES</label><input class="destination-input" id="rider-phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="24" required value="${esc(s.riderPhone||'')}" placeholder="(404) 555-0123"><label style="display:flex;gap:10px;align-items:flex-start;margin-top:12px;font-size:13px;line-height:1.45"><input id="rider-sms-consent" type="checkbox" ${s.smsConsent?'checked':''} style="margin-top:3px"><span>${s.smsConfigured?'I agree to receive up to two ride texts: when the pilot accepts and when the pilot arrives at pickup. Reply STOP to opt out.':'I agree to receive up to two ride texts: when the pilot accepts and when the pilot arrives at pickup. If automatic texting is unavailable, the pilot will open Messages and tap Send. Reply STOP to opt out.'} Message and data rates may apply.</span></label></section>`}
+function renderWhyTrickhopper(){return `<section class="card why-trickhopper" aria-labelledby="why-trickhopper-title"><h2 class="eyebrow" id="why-trickhopper-title">WHY TRICKHOPPER?</h2><div class="why-trickhopper-row"><span class="why-trickhopper-icon" aria-hidden="true">×</span><div><h3>Standard rideshare at night</h3><p>Late-night pickups can mean long curb waits, surge pricing, cancellations, or belongings left behind.</p></div></div><div class="why-trickhopper-row"><span class="why-trickhopper-icon bunny" aria-hidden="true">🐰</span><div><h3>The Nightlife Bunny model</h3><p>Plan your stops, reserved curbside waits, and return to your pickup in one request. Review the route and wait estimate upfront; a pilot must accept before the ride is confirmed.</p></div></div></section>`}
+function pilotSmsLink(phone,state){const number=String(phone||'').replace(/[^+\d]/g,'');const id=String(state.tripId||'').slice(0,8).toUpperCase();const body=state.tripState==='COMPLETED'?`TRICKHOPPER: Your ride ${id} is complete. Thanks for riding with us!`:state.pickupArrivedAt?`TRICKHOPPER: Your pilot has arrived at pickup for ride ${id}. Open the app to see live trip status.`:`TRICKHOPPER: Your pilot accepted ride ${id} and is heading to pickup. Open the app for live trip status.`;const separator=/Android/i.test(navigator.userAgent)?'?body=':'&body=';return `sms:${number}${separator}${encodeURIComponent(body)}`}
 
-const POPULAR_ATL_SPOTS = [
-  'Magic City, Atlanta, GA',
-  'Ponce City Market, Atlanta, GA',
-  'Compound Nightclub, Atlanta, GA',
-  'Krog Street Market, Atlanta, GA',
-  'The Battery Atlanta, Atlanta, GA',
-  'Waffle House (Midtown)',
-  'JR Crickets (Midtown)',
-  'Buckhead Village District',
-];
-
-function shortMinutes(seconds) {
-  const minutes = Math.max(1, Math.round(Math.max(0, Number(seconds) || 0) / 60));
-  return `${minutes} min`;
+function renderSettlement(s,role){
+  if(s.simulationMode){const quote=s.routeQuote||{},route=quote.route||{},waits=s.stopWaits||[];return `<section class="card cash-confirmation simulation-report"><div class="eyebrow">LOCAL SIMULATION · READ-ONLY RESULTS</div><h2 class="cash-title">Ride flow completed</h2><div class="fare-estimate"><span>Route estimate</span><strong>${Number(route.totalDistanceMiles||0).toFixed(2)} mi</strong><span>Estimated travel time</span><strong>${shortMinutes(route.totalDurationSeconds)}</strong><span>Estimated fare</span><strong>${money(quote.fare?.totalCents||0)} USD</strong><span>Pilot GPS samples</span><strong>${s.fixCounts?.pilot||0}</strong><span>Rider GPS samples</span><strong>${s.fixCounts?.rider||0}</strong><span>Recorded pilot track</span><strong>${Number(s.tripDistanceMiles||0).toFixed(2)} mi</strong>${waits.map((wait,index)=>`<span>Hop ${index+1} wait</span><strong>${fmtDuration(wait.elapsedSeconds||0)} · ${fmtDuration(wait.billableSeconds||0)} overrun</strong>`).join('')}</div><p class="cash-note">Generated coordinates only. This exercises trip requests, stop events, wait timers, return completion, and telemetry storage. No real rider, pilot, vehicle movement, GPS session, or payment occurred.</p></section>`}
+  if(!s.settlementMode)return `<section class="card cash-confirmation"><div class="eyebrow">TEST CHECKOUT · SIMULATED PAYMENT</div><h2 class="cash-title">Payment flow</h2>${role==='rider'?'<p class="page-subtitle">Review fare approval and checkout outcomes in the test ledger.</p><button class="btn-primary" id="choose-demo">Open test checkout →</button>':'<p class="page-subtitle">Waiting for the rider to open test checkout.</p>'}</section>`;
+  return renderDemoCheckout(s,role);
 }
-
-function fmtDuration(total) {
-  const n = Math.max(0, Math.floor(total || 0));
-  return `${String(Math.floor(n / 3600)).padStart(2, '0')}:${String(Math.floor((n % 3600) / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`;
+function smsHref(phone,message){const number=String(phone||'').replace(/[^\d+]/g,'');if(number.length<7)return '';const delimiter=/iPhone|iPad|Macintosh/i.test(navigator.userAgent)?'?&body=':'?body=';return `sms:${number}${delimiter}${encodeURIComponent(message)}`}
+function cashAppHref(value){const input=String(value||'').trim();try{const url=new URL(input);if(url.protocol==='https:'&&url.hostname==='cash.app'&&url.username===''&&url.password===''&&url.pathname.length>1)return url.href}catch{}return ''}
+function renderExternalCashApp(s,role){
+  const payment=s.externalPayment||{status:'NOT_STARTED',amountCents:null,sentCents:null,receivedCents:null,attestations:{rider:false,pilot:false}};
+  const amount=payment.amountCents===null?'':(payment.amountCents/100).toFixed(2),trip=String(s.tripId||'').slice(0,8).toUpperCase();
+  const contact=localStorage.getItem(`th_${role}_sms_contact`)||'',tag=localStorage.getItem('th_pilot_cashapp_link')||'';
+  const phoneId=role==='rider'?'pilot-sms-contact':'rider-sms-contact',label=role==='rider'?'PILOT PHONE NUMBER':'RIDER PHONE NUMBER';
+  let action='';
+  if(payment.status==='NOT_STARTED')action=role==='rider'?`<label class="eyebrow" for="external-fare">AGREED AMOUNT · USD</label><div class="cash-input-row"><span>$</span><input id="external-fare" type="number" inputmode="decimal" min="0.01" max="10000" step="0.01" placeholder="0.00" aria-label="Agreed amount in US dollars"><span>USD</span></div><button class="btn-primary" id="save-external-fare">Set agreed amount</button>`:'<p class="page-subtitle">Waiting for rider to enter the agreed amount.</p>';
+  else if(payment.status==='DISPUTED')action='<p role="alert" class="cash-dispute">Reported amounts differ. Contact each other and resolve directly in Cash App.</p>';
+  else if(payment.status==='BOTH_ATTESTED')action=`<strong class="cash-amount">Both parties attest to $${amount} USD</strong><p class="cash-note">This is a matching user report. Trickhopper did not inspect Cash App or verify the transfer.</p>`;
+  else action=role==='rider'?`<label class="eyebrow" for="sent-amount">AMOUNT YOU SENT · USD</label><div class="cash-input-row"><span>$</span><input id="sent-amount" type="number" inputmode="decimal" min="0.01" max="10000" step="0.01" value="${amount}" aria-label="Amount sent in US dollars"><span>USD</span></div>${payment.attestations?.rider?'<strong class="cash-amount">Your sent-payment report is recorded.</strong>':'<button class="btn-secondary" id="attest-sent">I sent this amount in Cash App</button>'}`:`<label class="eyebrow" for="received-amount">AMOUNT YOU RECEIVED · USD</label><div class="cash-input-row"><span>$</span><input id="received-amount" type="number" inputmode="decimal" min="0.01" max="10000" step="0.01" value="${amount}" aria-label="Amount received in US dollars"><span>USD</span></div>${payment.attestations?.pilot?'<strong class="cash-amount">Your received-payment report is recorded.</strong>':'<button class="btn-secondary" id="attest-received">I received this amount in Cash App</button>'}`;
+  return `<section class="card cash-confirmation"><div class="eyebrow">CASH APP · EXTERNAL PAYMENT</div><h2 class="cash-title">${payment.status==='BOTH_ATTESTED'?'Trip handoff complete':payment.status==='DISPUTED'?'Payment amount mismatch':'Complete the external payment handoff'}</h2><p class="page-subtitle">Cash App opens separately. Enter the amount and trip note there, review the recipient, then authorize it yourself. Trickhopper does not collect, process, hold, or route these funds.</p>${payment.amountCents!==null?`<strong class="cash-amount">Agreed: $${amount} USD · Trip ${trip}</strong>`:''}${action}<div class="cash-input-row"><label class="eyebrow" for="${phoneId}">${label}</label><input id="${phoneId}" type="tel" autocomplete="tel" maxlength="30" value="${esc(contact)}" placeholder="+1 555 555 5555"></div>${role==='rider'?`<div class="cash-input-row"><label class="eyebrow" for="pilot-cashapp-link">PILOT CASH APP PAYMENT LINK FOR THIS USE</label><input id="pilot-cashapp-link" maxlength="300" value="${esc(tag)}" placeholder="https://cash.app/… (approved for service payments)"></div><div class="settlement-actions"><button class="btn-primary" id="open-cashapp">Open Cash App payment →</button><button class="btn-secondary" id="send-sms">Text pilot · review and tap Send</button></div>`:`<div class="settlement-actions"><button class="btn-secondary" id="send-sms">Text rider · review and tap Send</button></div>`}<p class="cash-roles"><span>Rider ${payment.attestations?.rider?'✓':'·'}</span><span>Pilot ${payment.attestations?.pilot?'✓':'·'}</span></p><p class="cash-note">SMS opens your device’s message composer; you must tap Send. Amount confirmations are self-reported and are not proof of payment. Use a Cash App payment method approved for service payments; personal peer-to-peer payments are not for commercial purchases. Current status: ${payment.status.replaceAll('_',' ').toLowerCase()}.</p></section>`;
 }
-
-function renderWhyTrickhopper() {
-  return `<section class="card why-trickhopper" aria-labelledby="why-trickhopper-title">
-    <h2 class="eyebrow" id="why-trickhopper-title">WHY TRICKHOPPER VS. UBER / LYFT AT 2 AM?</h2>
-    <div class="why-trickhopper-row">
-      <span class="why-trickhopper-icon" aria-hidden="true">×</span>
-      <div>
-        <h3>Point-to-point rideshare abandons you at the curb</h3>
-        <p>Standard drivers leave immediately after drop-off. At 2 AM bar close, you face 2.5x surge pricing, 30-minute curb waits, driver cancellations, or items left across multiple cars.</p>
-      </div>
-    </div>
-    <div class="why-trickhopper-row">
-      <span class="why-trickhopper-icon bunny" aria-hidden="true">🐰</span>
-      <div>
-        <h3>The TRICKHOPPER Nightlife Retainer Model</h3>
-        <p>One dedicated pilot stays assigned to your group across 1–3 stops and returns you home. Your pilot stages legally nearby while your standby timer runs, pulls up in 2 minutes when summoned, and locks in upfront pricing with a 50% retainer deposit.</p>
-      </div>
-    </div>
-  </section>`;
+function renderCashConfirmation(s,role){
+  const cash=s.cashConfirmation||{status:'NOT_OFFERED',amountCents:null,attestations:{rider:false,pilot:false}};
+  const status=cash.status==='CONFIRMED'?'Both parties confirmed the cash exchange':cash.status==='DISPUTED'?'Amount mismatch · resolve directly':cash.attestations?.[role]?'Your confirmation is recorded · waiting for the other person':'Confirm the agreed amount';
+  const amount=cash.amountCents===null?'':(cash.amountCents/100).toFixed(2);
+  return `<section class="card cash-confirmation"><div class="eyebrow">CASH · NO PROCESSING FEE</div><h2 class="cash-title">${status}</h2><p class="page-subtitle">Each person confirms the same agreed amount from their own portal. This records both parties’ statements; the app cannot verify physical cash.</p><div class="cash-roles"><span>Rider ${cash.attestations?.rider?'✓':'·'}</span><span>Pilot ${cash.attestations?.pilot?'✓':'·'}</span></div>${cash.status==='CONFIRMED'?`<strong class="cash-amount">$${amount} USD · confirmed by both</strong>`:cash.status==='DISPUTED'?'<p role="alert" class="cash-dispute">The amounts did not match. No payment is marked verified.</p>':!cash.attestations?.[role]?`<label class="eyebrow" for="cash-amount">AGREED CASH AMOUNT · USD</label><div class="cash-input-row"><span>$</span><input id="cash-amount" type="number" inputmode="decimal" min="0.01" max="10000" step="0.01" value="${amount}" placeholder="0.00" aria-label="Agreed cash amount in US dollars"><span>USD</span></div><button class="btn-secondary" id="confirm-cash">${role==='rider'?'Confirm I paid cash':'Confirm I received cash'}</button>`:`<strong class="cash-amount">Waiting for the other person’s confirmation</strong>`}<p class="cash-note">In-app only · no SMS · no processor charge.</p></section>`;
 }
-
-function renderDemoWalkthroughBar(s) {
-  if (!s.simulationMode && s.tripState !== TRIP_STATES.REQUESTED) return '';
-  const nextStageLabel = {
-    REQUESTED: 'Assign Pilot Rocko (En Route)',
-    EN_ROUTE: 'Arrive at Pickup (Start Grace Timer)',
-    WAITING_PICKUP: 'Board Rider & Start Outbound Leg',
-    ACTIVE: `Arrive at Hop ${(s.stopIndex || 0) + 1} (Start Standby Timer)`,
-    WAITING_HOP: `Depart Hop ${(s.stopIndex || 0) + 1} → Next Stop`,
-    WAITING_RETURN: 'Summon & Start Return Leg to Pickup',
-    RETURNING: 'Arrive Back at Pickup & Complete Trip',
-    COMPLETED: 'Trip Completed',
-  }[s.tripState] || 'Next Stage';
-
-  return `<section class="card demo-controller-bar" role="region" aria-label="Interactive Prototype Walkthrough Controls">
-    <div class="demo-controller-head">
-      <div>
-        <span class="eyebrow" style="color:#fde68a">⚡ INTERACTIVE PROTOTYPE WALKTHROUGH</span>
-        <strong style="display:block;color:#fff;font-size:14px;margin-top:2px">${s.simulationMode ? 'Auto-Pilot Simulator Active (Pilot Rocko · Cadillac Escalade)' : 'Waiting in Live Queue — Want to Demo Solo Right Now?'}</strong>
-      </div>
-      <span class="live-pill" style="background:rgba(245,158,11,.22);color:#fde68a">${esc(s.tripState)}</span>
-    </div>
-    <p class="cash-note" style="color:#fef3c7;margin:6px 0 10px">
-      ${s.simulationMode
-        ? 'Step through each hop at your own speaking pace, or test the Curbside Summon & +15 Min Wait Extension buttons below.'
-        : 'No second device needed: launch the Auto-Pilot Simulator to experience pilot acceptance, live map tracking, standby timers, and return completion right here.'}
-    </p>
-    <div class="demo-controller-actions">
-      ${!s.simulationMode && s.tripState === TRIP_STATES.REQUESTED
-        ? `<button type="button" class="btn-primary" id="start-autopilot">⚡ Launch Auto-Pilot Simulator Now →</button>`
-        : s.tripState !== TRIP_STATES.COMPLETED
-          ? `<button type="button" class="btn-primary" id="step-autopilot">⏭ Step: ${esc(nextStageLabel)} →</button>
-             <button type="button" class="btn-secondary" id="pause-autopilot">⏸ Pause Auto-Timer</button>`
-          : ''}
-    </div>
-  </section>`;
+function renderDemoCheckout(s,role){
+  const d=s.demoPayment||{status:'NOT_STARTED',amountCents:null,estimatedFeeCents:null,pilotPayoutCents:null};
+  const amount=d.amountCents===null?'':(d.amountCents/100).toFixed(2),fee=d.estimatedFeeCents===null?'':(d.estimatedFeeCents/100).toFixed(2),net=d.pilotPayoutCents===null?'':(d.pilotPayoutCents/100).toFixed(2);
+  let body='';
+  if(d.status==='NOT_STARTED'||d.status==='FARE_REJECTED')body=role==='rider'?`<label class="eyebrow" for="demo-fare">AGREED DEMO FARE · USD</label><div class="cash-input-row"><span>$</span><input id="demo-fare" type="number" inputmode="decimal" min="0.01" max="10000" step="0.01" value="${amount}" placeholder="0.00" aria-label="Demo fare in US dollars"><span>USD</span></div><button class="btn-primary" id="propose-demo-fare">Send fare to pilot for approval</button>`:'<p class="page-subtitle">Waiting for the rider to enter the agreed demo fare.</p>';
+  else if(d.status==='FARE_AWAITING_PILOT')body=role==='pilot'?`<strong class="cash-amount">Proposed fare: $${amount} USD</strong><div class="settlement-actions"><button class="btn-primary" id="approve-demo-fare">Approve fare</button><button class="btn-secondary" id="reject-demo-fare">Reject fare</button></div>`:`<strong class="cash-amount">$${amount} USD · awaiting pilot approval</strong>`;
+  else if(d.status==='FARE_APPROVED')body=role==='rider'?`<strong class="cash-amount">Pilot approved $${amount} USD</strong><div class="settlement-actions"><button class="btn-primary" id="demo-success">Simulate payment success</button><button class="btn-secondary" id="demo-decline">Simulate decline</button></div>`:`<strong class="cash-amount">Fare approved: $${amount} USD · waiting for rider test outcome</strong>`;
+  else if(d.status==='TEST_SUCCEEDED')body=`<strong class="cash-amount">Demo charge succeeded · $${amount} USD</strong><div class="cash-roles"><span>Estimated processor fee: $${fee}</span><span>Pilot net: $${net}</span></div><p class="cash-note">Payout is calculated for demonstration only. No payment or transfer occurred.</p>`;
+  else if(d.status==='TEST_DECLINED')body=`<strong class="cash-amount">Demo payment declined · $${amount} USD</strong><p class="cash-note">No money moved. Reset the trip to start another scenario.</p>`;
+  return `<section class="card cash-confirmation"><div class="eyebrow">DIGITAL CHECKOUT · SIMULATION</div><h2 class="cash-title">${d.status==='TEST_SUCCEEDED'?'Demo ledger completed':d.status==='TEST_DECLINED'?'Demo decline scenario':'Approve fare, then simulate checkout'}</h2><p class="page-subtitle">This local sandbox does not connect to Stripe, Apple Pay, or Cash App Pay. It cannot charge a card or send a pilot payout.</p>${body}<p class="cash-note">Status: ${d.status.replaceAll('_',' ').toLowerCase()} · test only.</p></section>`;
 }
-
-function renderCurbsideAndComms(s, role) {
-  if (!['EN_ROUTE', 'WAITING_PICKUP', 'ACTIVE', 'WAITING_HOP', 'WAITING_RETURN', 'RETURNING'].includes(s.tripState)) return '';
-  const statusBadges = {
-    NONE: { label: 'EN ROUTE / DRIVING', color: '#38bdf8', desc: 'Vehicle is actively moving along the planned route.' },
-    STAGED_NEARBY: { label: 'STAGED IN LEGAL STANDBY (1 BLOCK AWAY)', color: '#a855f7', desc: 'Pilot is parked legally nearby to avoid Atlanta curb tickets/boots. Tap "Summon to Curb" 2 mins before walking out.' },
-    SUMMONED_BY_RIDER: { label: 'RIDER SUMMONED PILOT TO CURB!', color: '#f59e0b', desc: 'Rider is heading out of the venue! Pilot alerted to pull up to the pickup curb.' },
-    PULLING_TO_CURB: { label: 'PILOT PULLING UP TO CURB (ETA ~90 SEC)', color: '#10b981', desc: 'Pilot has left the staging zone and is pulling up to the venue entrance.' },
-    AT_CURB_HAZARDS: { label: 'OUTSIDE AT CURB · HAZARDS FLASHING', color: '#24d69a', desc: 'Pilot is waiting right at the curb with hazard lights on.' },
-  };
-  const curb = statusBadges[s.curbsideStatus] || statusBadges.NONE;
-  const inStopWait = ['WAITING_HOP', 'WAITING_RETURN'].includes(s.tripState);
-  const pings = (s.pings || []).slice(-4).reverse();
-
-  const cabinItems = s.cabinItems || [];
-  const hasLockedItems = cabinItems.some(it => it.status === 'LOCKED_IN_CABIN');
-
-  return `<section class="card curbside-card">
-    <div class="eyebrow">CURBSIDE STAGING, RE-BOARDING PIN & VIP CABIN SAFE-HOLD</div>
-    <div class="curbside-status-banner" style="border-color:${curb.color}66">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-        <strong style="color:${curb.color};font-size:13px">${curb.label}</strong>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          ${s.acceptedPilotPlate ? `<span class="live-pill">PLATE: ${esc(s.acceptedPilotPlate)}</span>` : ''}
-          ${s.boardingPin ? `<span class="live-pill" style="border-color:#ff62b6;color:#ffd5ec">RE-BOARDING PIN: ${esc(s.boardingPin)} ${s.boardingPinVerified ? '✓' : ''}</span>` : ''}
-        </div>
-      </div>
-      <p class="cash-note" style="margin-top:4px;color:var(--text-secondary)">${curb.desc}</p>
-    </div>
-
-    ${s.boardingPin && !s.boardingPinVerified ? `
-      <div style="margin-top:10px">
-        <button type="button" class="btn-secondary" id="btn-verify-pin">
-          🔐 Verify 4-Digit Curbside Re-Boarding PIN (${esc(s.boardingPin)}) ✓
-        </button>
-      </div>
-    ` : ''}
-
-    ${role === 'rider' && inStopWait ? `
-      <div class="curbside-action-grid" style="margin-top:12px">
-        <button type="button" class="btn-primary" id="btn-summon-curb">🚨 Summon Pilot to Curb (Heading Out in 2 Min)</button>
-        <div class="curbside-secondary-row">
-          <button type="button" class="btn-secondary" id="btn-extend-15">⏱ +15 Min Standby (${money(getWaitBlockCents(15))})</button>
-          <button type="button" class="btn-secondary" id="btn-ping-inside">👋 Check-In: Still Inside</button>
-        </div>
-      </div>
-    ` : ''}
-
-    ${role === 'rider' && !inStopWait ? `
-      <div class="curbside-secondary-row" style="margin-top:12px">
-        <button type="button" class="btn-secondary" id="btn-ping-ready">📍 I’m Standing at the Curb</button>
-        <button type="button" class="btn-secondary" id="btn-ping-inside">👋 Be Right Out (1 Min)</button>
-      </div>
-    ` : ''}
-
-    ${role === 'pilot' ? `
-      <div class="curbside-secondary-row" style="margin-top:12px">
-        <button type="button" class="btn-secondary" id="btn-pilot-staged">🅿️ Stage Nearby (Legal Standby)</button>
-        <button type="button" class="btn-secondary" id="btn-pilot-pulling">🚗 Pulling to Curb Now</button>
-        <button type="button" class="btn-secondary" id="btn-pilot-hazards">🚨 At Curb · Hazards On</button>
-      </div>
-    ` : ''}
-
-    <div class="spot-picks" style="margin-top:14px">
-      <span class="eyebrow">VIP CABIN SAFE-HOLD · BELONGINGS LOCKED IN VEHICLE DURING HOPS</span>
-      <div class="spot-pick-list" style="margin-top:6px">
-        <button type="button" class="spot-pick" data-cabin-add="Coat / Jacket">+ 🧥 Coat / Jacket</button>
-        <button type="button" class="spot-pick" data-cabin-add="Heels / Extra Shoes">+ 👠 Heels / Shoes</button>
-        <button type="button" class="spot-pick" data-cabin-add="VIP Bag / Purse">+ 👜 Bag / Purse</button>
-      </div>
-      ${cabinItems.length ? `
-        <div class="ping-feed" style="margin-top:8px">
-          ${cabinItems.map(it => `
-            <div class="ping-item">
-              <span class="ping-role ${it.status === 'LOCKED_IN_CABIN' ? 'rider' : 'pilot'}">${it.status === 'LOCKED_IN_CABIN' ? 'LOCKED' : 'RETRIEVED'}</span>
-              <span>${esc(it.label)}</span>
-              <small>${new Date(it.updatedAt).toLocaleTimeString()}</small>
-            </div>
-          `).join('')}
-          ${hasLockedItems ? `
-            <button type="button" class="btn-secondary" id="btn-cabin-retrieve-all" style="margin-top:8px">
-              ✅ Confirm All Cabin Belongings Retrieved
-            </button>
-          ` : ''}
-        </div>
-      ` : `<p class="cash-note" style="margin-top:6px">Leaving a jacket, heels, or bag in the SUV while you hop? Log it above so both portals track it until final drop-off.</p>`}
-    </div>
-
-    ${pings.length ? `
-      <div class="ping-feed" style="margin-top:12px">
-        <div class="eyebrow" style="margin-bottom:6px">LIVE TRIP CHECK-IN LOG</div>
-        ${pings.map(p => `<div class="ping-item"><span class="ping-role ${p.role}">${p.role.toUpperCase()}</span><span>${esc(p.text)}</span><small>${new Date(p.timestamp).toLocaleTimeString()}</small></div>`).join('')}
-      </div>
-    ` : ''}
-  </section>`;
+function renderRateCard(){
+  const example=calculateFare({distanceMiles:5,activeSeconds:15*60,waitSeconds:5*60});
+  return `<details class="details-card"><summary>How fares are calculated</summary><section class="card rate-card"><div class="eyebrow">TEST RATE PLAN · USD</div><h2 class="cash-title">Fare details</h2><div class="rate-grid"><span>Base rate</span><strong>${money(RATE_CARD.baseFareCents)}</strong><span>Per GPS mile</span><strong>${money(RATE_CARD.perMileCents)}</strong><span>Per active trip minute</span><strong>${money(RATE_CARD.perActiveMinuteCents)}</strong><span>Wait rate</span><strong>${money(RATE_CARD.perWaitMinuteCents)}/min</strong><span>Minimum</span><strong>${money(RATE_CARD.minimumFareCents)}</strong></div><p class="cash-note">Example: 5 mi + 15 active min + 5 min wait = ${money(example.totalCents)} USD. Route and wait functions are available for controlled testing. Checkout is simulated; no charge or pilot payout is processed.</p></section></details>`;
 }
-
-function smsHref(phone, message) {
-  const number = String(phone || '').replace(/[^\d+]/g, '');
-  if (number.length < 7) return '';
-  const delimiter = /iPhone|iPad|Macintosh/i.test(navigator.userAgent) ? '?&body=' : '?body=';
-  return `sms:${number}${delimiter}${encodeURIComponent(message)}`;
+function shortMinutes(seconds){const minutes=Math.round(Math.max(0,Number(seconds)||0)/60);return `${minutes} min`}
+function renderRouteQuote(quote){
+  if(!quote)return'';const route=quote.route||{},fare=quote.fare||{},hops=quote.hops||[],legs=route.legs||[];
+  return `<section class="card route-quote-card"><div class="eyebrow">ROUTE-BASED TEST ESTIMATE · USD</div><h2 class="cash-title">Nightlife itinerary</h2><div class="route-itinerary"><div>📍 Live pickup</div>${hops.map((hop,index)=>`<div class="route-hop-line"><span>Hop ${index+1} · ${esc(hop.destination?.label||hop.destination?.query)}</span><strong>${Number(legs[index]?.distanceMiles||0).toFixed(1)} mi · ${shortMinutes(legs[index]?.durationSeconds)} · ${hop.waitMinutes} min wait</strong></div>`).join('')}<div class="route-hop-line"><span>↩ Return to pickup</span><strong>${Number(legs.at(-1)?.distanceMiles||0).toFixed(1)} mi · ${shortMinutes(legs.at(-1)?.durationSeconds)}</strong></div></div><div class="route-leg-grid"><span>Round-trip route</span><strong>${Number(route.totalDistanceMiles||0).toFixed(1)} mi · ${shortMinutes(route.totalDurationSeconds)}</strong></div><div class="fare-estimate"><span>Base</span><strong>${money(fare.baseCents||0)}</strong><span>Distance</span><strong>${money(fare.distanceCents||0)}</strong><span>Estimated travel time</span><strong>${money(fare.timeCents||0)}</strong>${hops.map((hop,index)=>`<span>Hop ${index+1} reserved wait · ${hop.waitMinutes} min</span><strong>${money(hop.waitMinutes*RATE_CARD.perWaitMinuteCents)}</strong>`).join('')}<span>Calculated estimate</span><strong>${money(fare.totalCents||0)} USD</strong></div><p class="cash-note">Address search: ${esc(quote.provider||'OpenStreetMap Photon + OSRM')}. The experimental fare uses OSRM road distances and the test rate plan. A separate shared wait timer starts when the pilot records arrival at each hop. After each reserved wait plus a 2-minute grace, overrun is shown separately at ${money(RATE_CARD.perWaitMinuteCents)}/min. Traffic, tolls, and actual GPS distance/time may differ. In-app checkout is simulated.</p><p class="cash-note">Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a>. Google Places results are separately attributed above.</p>${quote.calculatedAt?`<p class="cash-note">Calculated ${new Date(quote.calculatedAt).toLocaleString()}</p>`:''}</section>`;
 }
-
-function cashAppHref(value) {
-  const input = String(value || '').trim();
-  try {
-    const url = new URL(input);
-    if (url.protocol === 'https:' && url.hostname === 'cash.app' && url.username === '' && url.password === '' && url.pathname.length > 1) {
-      return url.href;
-    }
-  } catch {}
-  return '';
+function fmtDuration(total){const n=Math.max(0,Math.floor(total||0));return `${String(Math.floor(n/3600)).padStart(2,'0')}:${String(Math.floor(n%3600/60)).padStart(2,'0')}:${String(n%60).padStart(2,'0')}`}
+function renderWaitSegment(s,{label,start,end,activeState,elapsedKey,billableKey,includedSeconds=0,elapsedValue,billableValue}){
+  const grace=Number(s.waitGraceSeconds||120),active=s.tripState===activeState,elapsed=active&&start?Math.max(0,Math.floor((Date.now()-Date.parse(start))/1000)):Number(elapsedValue??s[elapsedKey]??0),billable=active?Math.max(0,elapsed-includedSeconds-grace):Number(billableValue??s[billableKey]??0),accrued=money(Math.round(billable/60*RATE_CARD.perWaitMinuteCents)),reservedRemaining=Math.max(0,includedSeconds-elapsed),graceRemaining=Math.max(0,includedSeconds+grace-elapsed),remaining=reservedRemaining>0?`${fmtDuration(reservedRemaining)} included wait remaining`:graceRemaining>0?`${fmtDuration(graceRemaining)} grace remaining`:`${fmtDuration(billable)} billable · ${accrued} provisional overrun`;
+  const status=active?'CLOCK RUNNING':end?'CLOSED':start?'STARTED':'NOT STARTED';
+  return `<div class="wait-segment"><div class="eyebrow">${label} · ${status}</div>${start?`<div class="return-wait-timer"><strong>${fmtDuration(elapsed)}</strong><span>${remaining}</span></div><p class="cash-note">Started ${new Date(start).toLocaleString()}${end?` · ended ${new Date(end).toLocaleString()}`:''}. ${includedSeconds?`${Math.floor(includedSeconds/60)}-minute reserved block, then a separate ${Math.floor(grace/60)}-minute grace period; overrun accrues at ${money(RATE_CARD.perWaitMinuteCents)} per minute, prorated by the second.`:`Separate ${Math.floor(grace/60)}-minute grace period; then ${money(RATE_CARD.perWaitMinuteCents)} per minute accrues, prorated by the second and rounded to cents.`}</p>`:`<p class="cash-note">This clock starts when the pilot records arrival. Both portals will show the timestamp and elapsed/billable duration.</p>`}</div>`;
 }
-
-function renderSettlement(s, role) {
-  const totalCents = s.routeQuote?.fare?.totalCents || 1200;
-  const depositCents = s.depositStatus === 'HELD_DEMO' ? (s.depositAmountCents || Math.round(totalCents * 0.5)) : 0;
-  const overrunCents = Math.round(((s.totalBillableStopWaitSeconds || 0) + (s.pickupWaitBillableSeconds || 0)) / 60 * RATE_CARD.overrunWaitMinuteCents);
-  const balanceDueCents = Math.max(0, totalCents - depositCents + overrunCents);
-
-  const summaryBanner = `<div class="settlement-summary-box">
-    <div><span>Original Quoted Retainer</span><strong>${money(totalCents)}</strong></div>
-    <div><span>50% Upfront Retainer Deposit (${s.depositStatus === 'HELD_DEMO' ? 'Locked' : 'Not Held'})</span><strong>−${money(depositCents)}</strong></div>
-    ${overrunCents > 0 ? `<div><span>Metered Wait Overrun Past Grace</span><strong>+${money(overrunCents)}</strong></div>` : ''}
-    <div class="settlement-balance-line"><span>Completion Balance Due Now</span><strong>${money(balanceDueCents)} USD</strong></div>
-  </div>`;
-
-  if (!s.settlementMode) {
-    return `<section class="card cash-confirmation">
-      <div class="eyebrow">SETTLEMENT · ROUNDTRIP COMPLETE</div>
-      <h2 class="cash-title">Close out completion balance</h2>
-      ${summaryBanner}
-      ${role === 'rider'
-        ? `<p class="page-subtitle">Choose how to settle the remaining balance (${money(balanceDueCents)} USD):</p>
-           <div class="settlement-actions">
-             <button class="btn-primary" id="choose-demo">Digital Checkout · Instant Demo Ledger</button>
-             <button class="btn-secondary" id="choose-cashapp">Cash App · External Handoff</button>
-             <button class="btn-secondary" id="choose-cash">Cash · Dual In-App Attestation</button>
-           </div>`
-        : '<p class="page-subtitle">Waiting for the rider to choose a settlement path.</p>'}
-    </section>`;
-  }
-  if (s.settlementMode === 'CASH') return renderCashConfirmation(s, role, balanceDueCents, summaryBanner);
-  if (s.settlementMode === 'CASHAPP') return renderExternalCashApp(s, role, balanceDueCents, summaryBanner);
-  return renderDemoCheckout(s, role, balanceDueCents, summaryBanner);
-}
-
-function renderExternalCashApp(s, role, suggestedCents, summaryBanner) {
-  const payment = s.externalPayment || { status: 'NOT_STARTED', amountCents: null, sentCents: null, receivedCents: null, attestations: { rider: false, pilot: false } };
-  const defaultVal = ((payment.amountCents ?? suggestedCents) / 100).toFixed(2);
-  const amount = payment.amountCents === null ? defaultVal : (payment.amountCents / 100).toFixed(2);
-  const trip = String(s.tripId || '').slice(0, 8).toUpperCase();
-  const contact = localStorage.getItem(`th_${role}_sms_contact`) || '';
-  const tag = localStorage.getItem('th_pilot_cashapp_link') || '';
-  const phoneId = role === 'rider' ? 'pilot-sms-contact' : 'rider-sms-contact';
-  const label = role === 'rider' ? 'PILOT PHONE NUMBER (OPTIONAL)' : 'RIDER PHONE NUMBER (OPTIONAL)';
-  let action = '';
-  if (payment.status === 'NOT_STARTED') {
-    action = role === 'rider'
-      ? `<label class="eyebrow" for="external-fare">AGREED COMPLETION AMOUNT · USD</label>
-         <div class="cash-input-row"><span>$</span><input id="external-fare" type="number" inputmode="decimal" min="0.01" max="10000" step="0.01" value="${defaultVal}" aria-label="Agreed amount in US dollars"><span>USD</span></div>
-         <button class="btn-primary" id="save-external-fare">Set agreed amount</button>`
-      : '<p class="page-subtitle">Waiting for rider to enter the agreed amount.</p>';
-  } else if (payment.status === 'DISPUTED') {
-    action = '<p role="alert" class="cash-dispute">Reported amounts differ. Contact each other and resolve directly in Cash App.</p>';
-  } else if (payment.status === 'BOTH_ATTESTED') {
-    action = `<strong class="cash-amount">Both parties attest to $${amount} USD</strong><p class="cash-note">Matching user report recorded.</p>`;
-  } else {
-    action = role === 'rider'
-      ? `<label class="eyebrow" for="sent-amount">AMOUNT YOU SENT · USD</label>
-         <div class="cash-input-row"><span>$</span><input id="sent-amount" type="number" inputmode="decimal" min="0.01" max="10000" step="0.01" value="${amount}" aria-label="Amount sent in US dollars"><span>USD</span></div>
-         ${payment.attestations?.rider ? '<strong class="cash-amount">Your sent-payment report is recorded.</strong>' : '<button class="btn-secondary" id="attest-sent">I sent this amount in Cash App</button>'}`
-      : `<label class="eyebrow" for="received-amount">AMOUNT YOU RECEIVED · USD</label>
-         <div class="cash-input-row"><span>$</span><input id="received-amount" type="number" inputmode="decimal" min="0.01" max="10000" step="0.01" value="${amount}" aria-label="Amount received in US dollars"><span>USD</span></div>
-         ${payment.attestations?.pilot ? '<strong class="cash-amount">Your received-payment report is recorded.</strong>' : '<button class="btn-secondary" id="attest-received">I received this amount in Cash App</button>'}`;
-  }
-  return `<section class="card cash-confirmation">
-    <div class="eyebrow">CASH APP · EXTERNAL PAYMENT</div>
-    <h2 class="cash-title">${payment.status === 'BOTH_ATTESTED' ? 'Trip handoff complete' : payment.status === 'DISPUTED' ? 'Payment amount mismatch' : 'Complete the external payment handoff'}</h2>
-    ${summaryBanner}
-    ${payment.amountCents !== null ? `<strong class="cash-amount">Agreed: $${amount} USD · Trip ${trip}</strong>` : ''}
-    ${action}
-    <div class="cash-input-row"><label class="eyebrow" for="${phoneId}">${label}</label><input id="${phoneId}" type="tel" autocomplete="tel" maxlength="30" value="${esc(contact)}" placeholder="+1 555 555 5555"></div>
-    ${role === 'rider'
-      ? `<div class="cash-input-row"><label class="eyebrow" for="pilot-cashapp-link">PILOT CASH APP LINK</label><input id="pilot-cashapp-link" maxlength="300" value="${esc(tag)}" placeholder="https://cash.app/$PilotTag"></div>
-         <div class="settlement-actions"><button class="btn-primary" id="open-cashapp">Open Cash App payment →</button><button class="btn-secondary" id="send-sms">Text pilot · review and tap Send</button></div>`
-      : `<div class="settlement-actions"><button class="btn-secondary" id="send-sms">Text rider · review and tap Send</button></div>`}
-    <p class="cash-roles"><span>Rider ${payment.attestations?.rider ? '✓' : '·'}</span><span>Pilot ${payment.attestations?.pilot ? '✓' : '·'}</span></p>
-  </section>`;
-}
-
-function renderCashConfirmation(s, role, suggestedCents, summaryBanner) {
-  const cash = s.cashConfirmation || { status: 'NOT_OFFERED', amountCents: null, attestations: { rider: false, pilot: false } };
-  const status =
-    cash.status === 'CONFIRMED'
-      ? 'Both parties confirmed the cash exchange'
-      : cash.status === 'DISPUTED'
-        ? 'Amount mismatch · resolve directly'
-        : cash.attestations?.[role]
-          ? 'Your confirmation is recorded · waiting for the other person'
-          : 'Confirm the agreed cash balance';
-  const amount = cash.amountCents === null ? (suggestedCents / 100).toFixed(2) : (cash.amountCents / 100).toFixed(2);
-  return `<section class="card cash-confirmation">
-    <div class="eyebrow">CASH · NO PROCESSING FEE</div>
-    <h2 class="cash-title">${status}</h2>
-    ${summaryBanner}
-    <div class="cash-roles"><span>Rider ${cash.attestations?.rider ? '✓' : '·'}</span><span>Pilot ${cash.attestations?.pilot ? '✓' : '·'}</span></div>
-    ${cash.status === 'CONFIRMED'
-      ? `<strong class="cash-amount">$${amount} USD · confirmed by both</strong>`
-      : cash.status === 'DISPUTED'
-        ? '<p role="alert" class="cash-dispute">The amounts did not match. No payment is marked verified.</p>'
-        : !cash.attestations?.[role]
-          ? `<label class="eyebrow" for="cash-amount">AGREED CASH AMOUNT · USD</label>
-             <div class="cash-input-row"><span>$</span><input id="cash-amount" type="number" inputmode="decimal" min="0.01" max="10000" step="0.01" value="${amount}" aria-label="Agreed cash amount in US dollars"><span>USD</span></div>
-             <button class="btn-primary" id="confirm-cash">${role === 'rider' ? 'Confirm I paid cash' : 'Confirm I received cash'}</button>`
-          : `<strong class="cash-amount">Waiting for the other person’s confirmation</strong>`}
-  </section>`;
-}
-
-function renderDemoCheckout(s, role, suggestedCents, summaryBanner) {
-  const d = s.demoPayment || { status: 'NOT_STARTED', amountCents: null, estimatedFeeCents: null, pilotPayoutCents: null };
-  const amount = d.amountCents === null ? (suggestedCents / 100).toFixed(2) : (d.amountCents / 100).toFixed(2);
-  const fee = d.estimatedFeeCents === null ? '' : (d.estimatedFeeCents / 100).toFixed(2);
-  const net = d.pilotPayoutCents === null ? '' : (d.pilotPayoutCents / 100).toFixed(2);
-  let body = '';
-  if (d.status === 'NOT_STARTED' || d.status === 'FARE_REJECTED') {
-    body = role === 'rider'
-      ? `<label class="eyebrow" for="demo-fare">AGREED COMPLETION BALANCE · USD</label>
-         <div class="cash-input-row"><span>$</span><input id="demo-fare" type="number" inputmode="decimal" min="0.01" max="10000" step="0.01" value="${amount}" aria-label="Demo fare in US dollars"><span>USD</span></div>
-         <button class="btn-primary" id="propose-demo-fare">${s.simulationMode ? 'Approve & Settle Demo Balance →' : 'Send fare to pilot for approval →'}</button>`
-      : '<p class="page-subtitle">Waiting for the rider to enter the agreed demo fare.</p>';
-  } else if (d.status === 'FARE_AWAITING_PILOT') {
-    body = role === 'pilot'
-      ? `<strong class="cash-amount">Proposed fare: $${amount} USD</strong>
-         <div class="settlement-actions"><button class="btn-primary" id="approve-demo-fare">Approve fare</button><button class="btn-secondary" id="reject-demo-fare">Reject fare</button></div>`
-      : `<strong class="cash-amount">$${amount} USD · awaiting pilot approval</strong>`;
-  } else if (d.status === 'FARE_APPROVED') {
-    body = role === 'rider'
-      ? `<strong class="cash-amount">Pilot approved $${amount} USD</strong>
-         <div class="settlement-actions"><button class="btn-primary" id="demo-success">Complete Demo Settlement ✓</button><button class="btn-secondary" id="demo-decline">Simulate Card Decline</button></div>`
-      : `<strong class="cash-amount">Fare approved: $${amount} USD · waiting for rider test outcome</strong>`;
-  } else if (d.status === 'TEST_SUCCEEDED') {
-    body = `<strong class="cash-amount">Demo settlement succeeded · $${amount} USD</strong>
-      <div class="cash-roles"><span>Processor fee (2.9% + $0.30): $${fee}</span><span>Pilot net payout: $${net}</span></div>
-      <p class="cash-note">100% of standby retainer goes to the pilot minus standard card processing. No money moved in this demo.</p>`;
-  } else if (d.status === 'TEST_DECLINED') {
-    body = `<strong class="cash-amount">Demo payment declined · $${amount} USD</strong><p class="cash-note">No money moved. Reset the trip to start another scenario.</p>`;
-  }
-  return `<section class="card cash-confirmation">
-    <div class="eyebrow">DIGITAL CHECKOUT · SIMULATION</div>
-    <h2 class="cash-title">${d.status === 'TEST_SUCCEEDED' ? 'Demo ledger completed' : d.status === 'TEST_DECLINED' ? 'Demo decline scenario' : 'Approve & simulate settlement'}</h2>
-    ${summaryBanner}
-    ${body}
-  </section>`;
-}
-
-function renderRateCard() {
-  const example = calculateFare({ distanceMiles: 6, activeSeconds: 18 * 60, hops: [{ waitMinutes: 30 }] });
-  return `<details class="details-card">
-    <summary>How TRICKHOPPER Nightlife Retainer pricing works</summary>
-    <section class="card rate-card">
-      <div class="eyebrow">NIGHTLIFE RETAINER RATE CARD · USD</div>
-      <h2 class="cash-title">Transparent, pilot-fair roundtrip pricing</h2>
-      <div class="rate-grid">
-        <span>Roundtrip Dispatch Base</span><strong>${money(RATE_CARD.baseFareCents)}</strong>
-        <span>Per Road / GPS Mile</span><strong>${money(RATE_CARD.perMileCents)}</strong>
-        <span>Per Active Driving Minute</span><strong>${money(RATE_CARD.perActiveMinuteCents)}</strong>
-        <span>15-Min Quick Hop Standby</span><strong>${money(WAIT_TIERS[15].blockCents)} ($0.40/min)</strong>
-        <span>30-Min Lounge Hold Standby</span><strong>${money(WAIT_TIERS[30].blockCents)} ($0.45/min)</strong>
-        <span>60-Min VIP Club Standby</span><strong>${money(WAIT_TIERS[60].blockCents)} ($0.45/min)</strong>
-        <span>Overrun Past Reserved + 2m Grace</span><strong>${money(RATE_CARD.overrunWaitMinuteCents)}/min</strong>
-        <span>Upfront Pilot Protection Deposit</span><strong>50% of Estimate</strong>
-        <span>Minimum Roundtrip Retainer</span><strong>${money(RATE_CARD.minimumFareCents)}</strong>
-      </div>
-      <p class="cash-note">Example: 6 mi roundtrip + 18 active min + 30-min Lounge Hold = ${money(example.totalCents)} USD (${money(example.upfrontDepositCents)} upfront deposit, ${money(example.completionBalanceCents)} on return) vs. ~${money(example.uberSurgeEstimateCents)} for two separate 1.95x surged rideshare trips.</p>
-    </section>
-  </details>`;
-}
-
-function renderRouteQuote(quote, passengerCount = 1, holdDeposit = true) {
-  if (!quote) return '';
-  const route = quote.route || {};
-  const fare = quote.fare || {};
-  const hops = quote.hops || [{ destination: quote.destination, waitMinutes: quote.waitMinutes || 15 }];
-  const legs = route.legs || [route.outbound, route.return].filter(Boolean);
-  const perPersonCents = Math.round((fare.totalCents || 0) / Math.max(1, Number(passengerCount) || 1));
-  const savingsCents = Math.max(0, (fare.uberSurgeEstimateCents || 0) - (fare.totalCents || 0));
-
-  return `<section class="card route-quote-card">
-    <div class="eyebrow">ROUND-TRIP NIGHTLIFE ITINERARY ESTIMATE · USD</div>
-    <h2 class="cash-title">${hops.length > 1 ? `${hops.length}-Stop Atlanta Nightlife Loop` : esc(quote.destination?.label || 'Selected Destination')}</h2>
-    <div class="route-itinerary">
-      <div>📍 <strong>Origin & Return:</strong> Current Pickup Location</div>
-      ${hops.map((hop, idx) => `
-        <div class="route-hop-line">
-          <span><strong>Hop ${idx + 1} · ${esc(hop.destination?.label || hop.destination?.query)}</strong></span>
-          <strong>Leg ${idx + 1}: ${Number(legs[idx]?.distanceMiles || 0).toFixed(1)} mi · ${shortMinutes(legs[idx]?.durationSeconds)} drive · ${hop.waitMinutes} min (${esc(WAIT_TIERS[hop.waitMinutes]?.label || 'Standby')})</strong>
-        </div>
-      `).join('')}
-      <div class="route-hop-line">
-        <span>↩ <strong>Guaranteed Return Leg → Original Pickup</strong></span>
-        <strong>${Number(legs.at(-1)?.distanceMiles || 0).toFixed(1)} mi · ${shortMinutes(legs.at(-1)?.durationSeconds)} drive</strong>
-      </div>
-    </div>
-
-    <div class="route-leg-grid">
-      <span>Total Round-Trip Distance & Drive Time</span>
-      <strong>${Number(route.totalDistanceMiles || 0).toFixed(1)} mi · ${shortMinutes(route.totalDurationSeconds)}</strong>
-    </div>
-
-    <div class="fare-estimate">
-      <span>Roundtrip Dispatch Base</span><strong>${money(fare.baseCents || 0)}</strong>
-      <span>Road Distance (${Number(route.totalDistanceMiles || 0).toFixed(1)} mi)</span><strong>${money(fare.distanceCents || 0)}</strong>
-      <span>Active Drive Time (${shortMinutes(route.totalDurationSeconds)})</span><strong>${money(fare.timeCents || 0)}</strong>
-      ${hops.map((hop, idx) => `
-        <span>Hop ${idx + 1} Standby (${hop.waitMinutes}m ${esc(WAIT_TIERS[hop.waitMinutes]?.label || '')})</span>
-        <strong>${money(getWaitBlockCents(hop.waitMinutes))}</strong>
-      `).join('')}
-      <span>Total Roundtrip Retainer</span><strong>${money(fare.totalCents || 0)} USD</strong>
-    </div>
-
-    <div class="deposit-split-banner">
-      <div>
-        <span class="eyebrow" style="color:#6ee7b7">PILOT & RIDER PROTECTION SPLIT</span>
-        <strong>50% Upfront Hold: ${money(fare.upfrontDepositCents || 0)} · Return Balance: ${money(fare.completionBalanceCents || 0)}</strong>
-        <small>Splitting across ${passengerCount} ${passengerCount === 1 ? 'rider' : 'riders'}: <strong>${money(perPersonCents)} / person</strong></small>
-      </div>
-      ${savingsCents > 0 ? `<span class="surge-save-badge">Save ~${money(savingsCents)} vs. 2 AM Surge</span>` : `<span class="surge-save-badge">0x Surge Locked</span>`}
-    </div>
-
-    <label class="deposit-checkbox-row">
-      <input type="checkbox" id="toggle-hold-deposit" ${holdDeposit ? 'checked' : ''}>
-      <span>Lock 50% Upfront Retainer Deposit (${money(fare.upfrontDepositCents || 0)}) in demo ledger so pilot cannot be ghosted mid-hop.</span>
-    </label>
-  </section>`;
-}
-
-function renderWaitSegment(s, { label, start, end, activeState, elapsedKey, billableKey, includedSeconds = 0, elapsedValue, billableValue }) {
-  const grace = Number(s.waitGraceSeconds || 120);
-  const active = s.tripState === activeState;
-  const elapsed = active && start ? Math.max(0, Math.floor((Date.now() - Date.parse(start)) / 1000)) : Number(elapsedValue ?? s[elapsedKey] ?? 0);
-  const billable = active ? Math.max(0, elapsed - includedSeconds - grace) : Number(billableValue ?? s[billableKey] ?? 0);
-  const accrued = money(Math.round((billable / 60) * RATE_CARD.overrunWaitMinuteCents));
-  const reservedRemaining = Math.max(0, includedSeconds - elapsed);
-  const graceRemaining = Math.max(0, includedSeconds + grace - elapsed);
-  const remaining =
-    reservedRemaining > 0
-      ? `${fmtDuration(reservedRemaining)} reserved standby remaining`
-      : graceRemaining > 0
-        ? `${fmtDuration(graceRemaining)} free grace remaining`
-        : `${fmtDuration(billable)} overrun · ${accrued} accrued`;
-  const status = active ? 'CLOCK RUNNING' : end ? 'CLOSED' : start ? 'STARTED' : 'NOT STARTED';
-
-  return `<div class="wait-segment">
-    <div class="eyebrow">${label} · ${status}</div>
-    ${start
-      ? `<div class="return-wait-timer"><strong>${fmtDuration(elapsed)}</strong><span>${remaining}</span></div>
-         <p class="cash-note">Started ${new Date(start).toLocaleTimeString()}${end ? ` · ended ${new Date(end).toLocaleTimeString()}` : ''}. ${
-           includedSeconds
-             ? `${Math.floor(includedSeconds / 60)}-min reserved block + ${Math.floor(grace / 60)}-min grace; overrun is ${money(RATE_CARD.overrunWaitMinuteCents)}/min.`
-             : `${Math.floor(grace / 60)}-min pickup grace; overrun is ${money(RATE_CARD.overrunWaitMinuteCents)}/min.`
-         }</p>`
-      : `<p class="cash-note">Clock starts when the pilot records arrival. Synchronized across both portals.</p>`}
-  </div>`;
-}
-
-function renderReturnWait(s, role) {
-  const hops = s.routeQuote?.hops || [{ destination: s.destination, waitMinutes: s.routeQuote?.waitMinutes || 15 }];
-  const current = Math.min(Number(s.stopIndex || 0), Math.max(0, hops.length - 1));
-  const waits = s.stopWaits || [];
-
-  return `<section class="card return-wait-card">
-    <div class="eyebrow">WAIT-AND-RETURN · SYNCHRONIZED STOP TIMELINE</div>
-    <h2 class="cash-title">Shared Standby & Wait Record</h2>
-    ${renderWaitSegment(s, {
-      label: 'Pickup wait',
-      start: s.pickupArrivedAt,
-      end: s.rideStartedAt,
-      activeState: 'WAITING_PICKUP',
-      elapsedKey: 'pickupWaitElapsedSeconds',
-      billableKey: 'pickupWaitBillableSeconds',
-    })}
-    ${hops.map((hop, idx) => {
-      const record = waits[idx] || {};
-      const isActiveHop = idx === current && ['WAITING_HOP', 'WAITING_RETURN'].includes(s.tripState);
-      return `<div class="stop-timeline ${idx === current ? 'current-stop' : ''}">
-        <strong>Hop ${idx + 1} · ${esc(hop?.destination?.label || hop?.destination?.query || 'Stop')}</strong>
-        ${renderWaitSegment(s, {
-          label: `Reserved Standby · ${hop?.waitMinutes || 15} min (${WAIT_TIERS[hop?.waitMinutes]?.label || 'Standby'})`,
-          start: record.arrivedAt || (idx === hops.length - 1 ? s.destinationArrivedAt : null),
-          end: record.departedAt || (idx === hops.length - 1 ? s.returnStartedAt : null),
-          activeState: isActiveHop ? s.tripState : '',
-          elapsedKey: 'returnWaitElapsedSeconds',
-          billableKey: 'returnWaitBillableSeconds',
-          elapsedValue: record.elapsedSeconds,
-          billableValue: record.billableSeconds,
-          includedSeconds: Number(hop?.waitMinutes || 15) * 60,
-        })}
-      </div>`;
-    }).join('')}
-
-    ${role === 'pilot' && s.tripState === 'EN_ROUTE'
-      ? '<button class="btn-primary btn-in-car" id="arrive-pickup">📍 Arrived at Pickup · Start Pickup Timer</button>'
-      : ''}
-    ${role === 'pilot' && s.tripState === 'WAITING_PICKUP'
-      ? '<button class="btn-primary btn-in-car" id="start-outbound">🚀 Rider Boarded · Start Outbound Route →</button>'
-      : ''}
-    ${role === 'pilot' && s.tripState === 'ACTIVE'
-      ? `<div class="settlement-actions">
-           <button class="btn-primary btn-in-car" id="arrive-current-stop">🅿️ Arrived at Hop ${current + 1} · Start Standby Timer</button>
-           <button class="btn-secondary" id="complete-ride" ${!s.simulationMode && (!s.gpsActiveByRole.pilot || (s.fixCounts.pilot || 0) < 2) ? 'disabled' : ''}>Complete One-Way Trip Early</button>
-         </div>`
-      : ''}
-    ${role === 'pilot' && s.tripState === 'WAITING_HOP'
-      ? `<button class="btn-primary btn-in-car" id="start-next-hop">➡️ Rider Boarded · Depart Hop ${current + 1} for Hop ${current + 2} →</button>`
-      : ''}
-    ${role === 'pilot' && s.tripState === 'WAITING_RETURN'
-      ? '<button class="btn-primary btn-in-car" id="start-return-leg">↩️ Rider Boarded · Start Return Leg to Pickup →</button>'
-      : ''}
-  </section>`;
+function renderReturnWait(s,role){
+  const hops=s.routeQuote?.hops||[],current=Math.min(Number(s.stopIndex||0),Math.max(0,hops.length-1)),waits=s.stopWaits||[];return `<section class="card return-wait-card"><div class="eyebrow">NIGHTLIFE HOPS · SHARED TRIP TIMELINE</div><h2 class="cash-title">Stop & wait record</h2>${renderWaitSegment(s,{label:'Pickup wait',start:s.pickupArrivedAt,end:s.rideStartedAt,activeState:'WAITING_PICKUP',elapsedKey:'pickupWaitElapsedSeconds',billableKey:'pickupWaitBillableSeconds'})}${hops.map((hop,index)=>{const record=waits[index]||{};return `<div class="stop-timeline ${index===current?'current-stop':''}"><strong>Hop ${index+1} · ${esc(hop.destination?.label||hop.destination?.query||'Stop')}</strong>${renderWaitSegment(s,{label:`Reserved curbside wait · ${hop.waitMinutes} min`,start:record.arrivedAt,end:record.departedAt,activeState:index===current&&['WAITING_HOP','WAITING_RETURN'].includes(s.tripState)?s.tripState:'',elapsedKey:'elapsedSeconds',billableKey:'billableSeconds',elapsedValue:record.elapsedSeconds,billableValue:record.billableSeconds,includedSeconds:Number(hop.waitMinutes||0)*60})}</div>`}).join('')}${role==='pilot'&&s.tripState==='EN_ROUTE'?'<button class="btn-secondary" id="arrive-pickup">Arrived at pickup · start pickup wait</button>':''}${role==='pilot'&&s.tripState==='WAITING_PICKUP'?'<button class="btn-primary" id="start-outbound">Rider boarded · start route →</button>':''}${role==='pilot'&&s.tripState==='ACTIVE'?`<p class="page-subtitle">Navigate to Hop ${current+1}: ${esc(hops[current]?.destination?.label||hops[current]?.destination?.query||'selected stop')}</p><button class="btn-secondary" id="arrive-current-stop">Arrived at Hop ${current+1} · start shared wait</button>`:''}${role==='pilot'&&s.tripState==='WAITING_HOP'?`<button class="btn-primary" id="start-next-hop">Depart Hop ${current+1} · continue to next stop →</button>`:''}${role==='pilot'&&s.tripState==='WAITING_RETURN'?'<button class="btn-primary" id="start-return-leg">Depart final stop · start return to pickup →</button>':''}</section>`;
 }
 
 function render() {
-  const root = document.getElementById('app');
-  if (!root) return;
-  const retainedLiveMap = root.querySelector('#live-map');
-  const focusedInput = document.activeElement?.dataset?.stopIndex !== undefined
-    ? { id: document.activeElement.id, start: document.activeElement.selectionStart, end: document.activeElement.selectionEnd }
-    : null;
+  const root = document.getElementById('app'); if (!root) return;
+  const retainedLiveMap=root.querySelector('#live-map');
+  const focusedAddress=document.activeElement?.matches?.('[data-destination-index]')?{id:document.activeElement.id,start:document.activeElement.selectionStart,end:document.activeElement.selectionEnd}:null;
+  const s = store.getState(), role = s.activeMode, other = role === 'pilot' ? 'rider' : 'pilot';
+  if(s.backendStatus!=='ready'){
+    root.innerHTML=`<div class="app-shell">${renderHeader(s)}<div class="demo-banner" role="note"><strong>CONTROLLED TEST MODE · LIVE GPS</strong><span>Use with consenting test participants. GPS is shared between the rider and pilot portals.</span></div><main class="content-body"><section class="card"><div class="eyebrow">TRIP SERVICE STATUS</div><h1 class="cash-title">${s.backendStatus==='checking'?'Checking trip service…':'Trip service is unavailable'}</h1><p class="page-subtitle">${s.backendStatus==='checking'?'Checking whether the shared trip service is available.':'The trip service is unavailable. Connect the shared API and storage, then retry to continue testing.'}</p>${s.backendStatus==='offline'?'<button class="btn-secondary" id="retry-backend">Check connection again</button>':''}</section></main></div>`;
+    document.getElementById('retry-backend')?.addEventListener('click',()=>store.checkBackend());
+    return;
+  }
 
-  const s = store.getState();
-  const role = s.activeMode;
-  const pilot = role === 'pilot';
-  const own = s.liveLocations[role];
-  const ownActive = s.gpsActiveByRole[role];
-
-  const stageCopy = {
-    IDLE: 'Ready when you are',
-    REQUESTED: 'Ride request in queue',
-    EN_ROUTE: 'Pilot en route to pickup',
-    WAITING_PICKUP: 'Pilot outside · pickup wait',
-    ACTIVE: `Driving to Hop ${(s.stopIndex || 0) + 1}`,
-    WAITING_HOP: `Standby at Hop ${(s.stopIndex || 0) + 1}`,
-    WAITING_RETURN: 'Standby at final stop · ready for return',
-    RETURNING: 'Return trip to original pickup',
-    COMPLETED: 'Roundtrip complete',
-  }[s.tripState] || 'Ready';
-
+  if(role==='pilot'&&!store.driverToken){root.innerHTML=`<div class="app-shell pilot-shell">${renderHeader(s)}<main class="content-body"><section class="card"><div class="eyebrow">PRIVATE DRIVER PORTAL</div><h1 class="cash-title">Pilot sign in</h1><p class="page-subtitle">Enter your details so dispatch can identify and contact you about ride requests.</p><form id="driver-login-form"><label class="eyebrow" for="pilot-display-name">PILOT NAME / CALLSIGN</label><input class="destination-input" id="pilot-display-name" autocomplete="nickname" required maxlength="60" aria-label="Pilot name or callsign" value="${esc(sessionStorage.getItem('trickhopper_pilot_name')||'')}"><label class="eyebrow" for="pilot-phone">MOBILE NUMBER</label><input class="destination-input" id="pilot-phone" type="tel" inputmode="tel" autocomplete="tel" required maxlength="24" aria-label="Pilot mobile number" placeholder="(404) 555-0123" value="${esc(sessionStorage.getItem('trickhopper_pilot_phone')||'')}"><label class="cash-note" for="pilot-sms-consent"><input id="pilot-sms-consent" type="checkbox" required> I agree that dispatch may contact me by SMS about ride requests. Texts are initiated by a person from a messaging app; carrier fees may apply. Reply STOP to opt out.</label><p class="cash-note">Dispatch operators can view this number in your pilot profile. If Messages opens, review the text and tap Send; the browser cannot send it automatically.</p><label class="eyebrow" for="pilot-vehicle">VEHICLE · MAKE, MODEL, COLOR</label><input class="destination-input" id="pilot-vehicle" autocomplete="off" maxlength="100" aria-label="Vehicle make model and color" placeholder="e.g. blue 2023 Honda Accord" value="${esc(sessionStorage.getItem('trickhopper_pilot_vehicle')||'')}"><label class="eyebrow" for="pilot-plate">LICENSE PLATE (OPTIONAL)</label><input class="destination-input" id="pilot-plate" autocomplete="off" maxlength="12" aria-label="Vehicle license plate" placeholder="Plate shown only after acceptance" value="${esc(sessionStorage.getItem('trickhopper_pilot_plate')||'')}"><label class="eyebrow" for="driver-access-code">ACCESS CODE</label><input class="destination-input" id="driver-access-code" type="password" autocomplete="current-password" required maxlength="160" aria-label="Driver access code"><button class="btn-primary booking-action" type="submit" ${s.driverLoginBusy?'disabled':''}>${s.driverLoginBusy?'Signing in…':'Sign in →'}</button></form>${s.driverLoginError?`<p class="cash-dispute" role="alert">${esc(s.driverLoginError)}</p>`:''}</section></main></div>`;document.getElementById('driver-login-form')?.addEventListener('submit',event=>{event.preventDefault();store.loginDriver(document.getElementById('driver-access-code')?.value||'',document.getElementById('pilot-display-name')?.value||'',document.getElementById('pilot-phone')?.value||'',document.getElementById('pilot-vehicle')?.value||'',document.getElementById('pilot-plate')?.value||'',document.getElementById('pilot-sms-consent')?.checked===true)});return}
+  const pilot = role === 'pilot', own = s.liveLocations[role], ownActive = s.gpsActiveByRole[role];
+  const stageCopy = ({IDLE:'Ready when you are',REQUESTED:'Ride request sent',EN_ROUTE:'Driver connected',WAITING_PICKUP:'Pickup wait',ACTIVE:'Ride in progress',WAITING_HOP:'Stop wait',WAITING_RETURN:'Final stop wait',RETURNING:'Return trip',COMPLETED:'Ride complete',CANCELLED:'Request cancelled',EXPIRED:'Request expired'})[s.tripState];
   let controls = '';
-
-  if (s.tripState === TRIP_STATES.IDLE && !pilot && !s.bookingPickup) {
-    controls = `<section class="card nightlife-planner booking-card">
-      <div class="booking-step-label"><span>1</span><span>Set Pickup Location</span></div>
-      <h2 class="booking-title">Where should your pilot pick you up & return you?</h2>
-      <p class="booking-intro">Share your live phone GPS or use our 1-tap Midtown Atlanta Demo Pickup to test the full multi-hop flow immediately.</p>
-      <div class="planner-origin">
-        <div>
-          <span class="eyebrow">ORIGIN & GUARANTEED RETURN POINT</span>
-          <strong>${s.gpsRequestingByRole?.rider ? 'Requesting browser GPS…' : 'Midtown / Current Location'}</strong>
-          <small>Used as both your starting pickup and your final return drop-off.</small>
-        </div>
-        <span class="live-pill">${s.gpsRequestingByRole?.rider ? 'LOCATING…' : 'STEP 1'}</span>
-      </div>
-      <div class="settlement-actions">
-        <button class="btn-primary booking-action" id="start-request" ${s.gpsRequestingByRole?.rider ? 'disabled' : ''}>
-          ${s.gpsRequestingByRole?.rider ? 'Finding your location…' : '📍 Use My Live GPS Location →'}
-        </button>
-        <button class="btn-secondary" id="use-demo-gps">
-          ⚡ Use Midtown Atlanta Demo Pickup (Instant Test) →
-        </button>
-      </div>
-      ${s.gpsErrors.rider ? `<p class="gps-inline-error" role="alert">${esc(s.gpsErrors.rider)}</p>` : ''}
-    </section>`;
-  }
-
-  if (s.tripState === TRIP_STATES.IDLE && !pilot && s.bookingPickup) {
-    const stops = s.stops || [{ destination: '', waitMinutes: 30, suggestions: [] }];
-    controls = `<section class="card destination-card nightlife-planner booking-card">
-      <div class="booking-step-label"><span>2</span><span>Build Your Nightlife Loop (Up to 3 Hops)</span></div>
-      <h2 class="booking-title">Where are you hopping tonight?</h2>
-      <p class="booking-intro">Select up to 3 stops and reserve your pilot’s standby wait window at each venue.</p>
-
-      <div class="planner-origin compact-origin">
-        <div>
-          <span class="eyebrow">PICKUP & RETURN POINT CONFIRMED</span>
-          <strong>${Number(s.bookingPickup.lat).toFixed(4)}, ${Number(s.bookingPickup.lng).toFixed(4)} (Atlanta)</strong>
-          <small>GPS accuracy ±${Math.round(s.bookingPickup.accuracy || 8)} m</small>
-        </div>
-        <span class="live-pill">READY</span>
-      </div>
-
-      <div class="hop-list">
-        ${stops.map((stop, idx) => `
-          <article class="hop-card">
-            <div class="hop-heading">
-              <strong>Hop ${idx + 1} · ${idx === 0 ? 'Primary Destination' : `Additional Stop ${idx + 1}`}</strong>
-              ${stops.length > 1 ? `<button type="button" class="remove-hop" data-remove-hop="${idx}">✕ Remove</button>` : ''}
-            </div>
-            <label class="eyebrow" for="destination-input-${idx}">VENUE NAME OR STREET ADDRESS</label>
-            <input
-              class="destination-input"
-              id="destination-input-${idx}"
-              data-stop-index="${idx}"
-              maxlength="180"
-              value="${esc(stop.destination || '')}"
-              placeholder="e.g. Magic City, Ponce City Market, Waffle House…"
-              autocomplete="off"
-            >
-            ${stop.suggestions?.length ? `
-              <div class="address-results" role="listbox" aria-label="Suggested Atlanta places">
-                ${stop.suggestions.map((sug, sIdx) => `
-                  <button type="button" class="address-result" data-suggest-stop="${idx}" data-suggest-idx="${sIdx}">
-                    <strong>${esc(sug.name || sug.label)}</strong>
-                    <small>${esc(sug.label)}</small>
-                  </button>
-                `).join('')}
-              </div>
-            ` : ''}
-
-            <div class="spot-picks">
-              <span class="eyebrow">QUICK-PICK ATLANTA NIGHTLIFE SPOTS</span>
-              <div class="spot-pick-list">
-                ${POPULAR_ATL_SPOTS.map(place => `
-                  <button type="button" class="spot-pick ${stop.destination === place ? 'active' : ''}" data-pick-stop="${idx}" data-place="${esc(place)}">
-                    ${esc(place.split(',')[0])}
-                  </button>
-                `).join('')}
-              </div>
-            </div>
-
-            <div class="wait-choice">
-              <div class="wait-choice-title">Reserve Pilot Standby Window at Hop ${idx + 1}</div>
-              <div class="wait-choice-buttons">
-                ${[15, 30, 60].map(minutes => {
-                  const tier = WAIT_TIERS[minutes];
-                  const selected = Number(stop.waitMinutes || 30) === minutes;
-                  return `<button
-                    type="button"
-                    class="btn-secondary wait-choice-button ${selected ? 'selected' : ''}"
-                    data-wait-stop="${idx}"
-                    data-wait-minutes="${minutes}"
-                    aria-pressed="${selected}"
-                  >
-                    <span>${minutes} min · ${esc(tier.label)}</span>
-                    <strong>${money(tier.blockCents)}</strong>
-                  </button>`;
-                }).join('')}
-              </div>
-              <small class="booking-footnote">Pilot stages legally nearby & pulls to the curb in 2 mins when you summon. Includes a 2-min grace period before ${money(RATE_CARD.overrunWaitMinuteCents)}/min overrun.</small>
-            </div>
-          </article>
-        `).join('')}
-      </div>
-
-      ${stops.length < 3 ? `<button type="button" class="add-hop" id="add-hop">+ Add Another Hop Stop (${stops.length}/3)</button>` : ''}
-
-      <div class="party-row" style="margin:14px 0">
-        <label class="eyebrow" for="passenger-count">PARTY SIZE (FOR FARE SPLIT & VEHICLE CAPACITY)</label>
-        <select id="passenger-count" class="destination-input">
-          ${[1, 2, 3, 4].map(n => `<option value="${n}" ${Number(s.passengerCount || 2) === n ? 'selected' : ''}>${n} ${n === 1 ? 'Rider (Solo VIP)' : `Riders (Split Fare ÷ ${n})`}</option>`).join('')}
-        </select>
-      </div>
-
-      ${s.routeError ? `<p class="cash-dispute" role="alert">${esc(s.routeError)}</p>` : ''}
-
-      <button type="button" class="btn-secondary" id="build-route" ${s.routeLoading ? 'disabled' : ''}>
-        ${s.routeLoading ? 'Calculating Atlanta road route…' : 'Calculate Upfront Round-Trip Estimate →'}
-      </button>
-
-      ${s.routeQuote ? `
-        ${renderRouteQuote(s.routeQuote, s.passengerCount, s.holdDeposit)}
-        <div class="settlement-actions">
-          <button type="button" class="btn-primary booking-action" id="request-demo-autopilot">
-            ⚡ Request & Launch Auto-Pilot Demo (${money(s.routeQuote.fare?.totalCents || 0)}) →
-          </button>
-          <button type="button" class="btn-secondary" id="request-estimated-trip">
-            📡 Send Request to Live Pilot Console (/driver) →
-          </button>
-        </div>
-      ` : ''}
-    </section>`;
-  }
-
-  if (pilot && s.tripState === TRIP_STATES.IDLE) {
-    controls = `<section class="card">
-      <div class="eyebrow">PILOT CONSOLE · STANDBY QUEUE</div>
-      <h2 class="cash-title">Waiting for next rider itinerary</h2>
-      <p class="page-subtitle">Keep this console open on your dash. When a rider submits a trip on <code>/</code>, it appears here automatically with full hop & retainer details.</p>
-      <div class="pilot-profile-grid">
-        <div>
-          <label class="eyebrow" for="pilot-name-input">YOUR PILOT CALLSIGN</label>
-          <input class="destination-input" id="pilot-name-input" value="${esc(s.pilotName || '')}" maxlength="50">
-        </div>
-        <div>
-          <label class="eyebrow" for="pilot-vehicle-input">VEHICLE DESCRIPTION</label>
-          <input class="destination-input" id="pilot-vehicle-input" value="${esc(s.pilotVehicle || '')}" maxlength="80">
-        </div>
-      </div>
-    </section>`;
-  }
-
-  if (pilot && s.tripState === TRIP_STATES.REQUESTED && !store.token) {
-    const hops = s.routeQuote?.hops || (s.destination ? [{ destination: s.destination, waitMinutes: s.routeQuote?.waitMinutes || 15 }] : []);
-    const openQueue = s.openRequests || [];
-    controls = `<section class="card">
-      ${openQueue.length > 1 ? `
-        <div class="spot-picks" style="margin-bottom:12px">
-          <span class="eyebrow">OPEN FLEET QUEUE (${openQueue.length} ACTIVE REQUESTS)</span>
-          <div class="spot-pick-list">
-            ${openQueue.map((reqItem, idx) => `
-              <button type="button" class="spot-pick ${reqItem.tripId === s.tripId ? 'active' : ''}" data-select-open-trip="${esc(reqItem.tripId)}">
-                #${idx + 1} · ${esc((reqItem.destination?.label || 'Stop').split(',')[0])} (${money(reqItem.routeQuote?.fare?.totalCents || 0)})
-              </button>
-            `).join('')}
-          </div>
-        </div>
-      ` : ''}
-      <div class="eyebrow">NEW NIGHTLIFE ROUNDTRIP REQUEST · ${s.passengerCount || 1} PASSENGER(S)</div>
-      <h2 class="cash-title">${hops.length}-Hop Roundtrip · ${money(s.routeQuote?.fare?.totalCents || 0)} Est.</h2>
-      <div class="route-itinerary" style="margin:10px 0">
-        ${hops.map((h, i) => `<div><strong>Hop ${i + 1}:</strong> ${esc(h.destination?.label || 'Stop')} (${h.waitMinutes}m standby)</div>`).join('')}
-      </div>
-      <p class="page-subtitle">50% Upfront Deposit Protection: <strong>${money(s.routeQuote?.fare?.upfrontDepositCents || 0)}</strong>. Accept with Live GPS or Atlanta Demo GPS:</p>
-      <div class="settlement-actions">
-        <button class="btn-primary btn-in-car" id="accept-request">📍 Accept with Live Device GPS →</button>
-        <button class="btn-secondary" id="accept-request-demo-gps">⚡ Accept with Midtown Demo GPS (Instant) →</button>
-      </div>
-    </section>`;
-  }
-
-  if (s.tripState === TRIP_STATES.RETURNING && pilot) {
-    controls = `<button class="btn-primary btn-in-car" id="complete-ride" ${!s.simulationMode && (!ownActive || !own || (s.fixCounts.pilot || 0) < 2) ? 'disabled' : ''}>
-      🏁 Complete Return Trip & Open Settlement →
-    </button>`;
-  }
-
-  if (s.tripState === TRIP_STATES.COMPLETED) {
-    controls = `<button class="btn-secondary" id="reset-trip" style="margin-top:12px">🔄 Clear Trip & Start Another Demo Run</button>`;
-  }
-
-  root.innerHTML = `<div class="app-shell ${pilot ? 'pilot-shell' : 'rider-shell'}">
-    ${renderHeader(s)}
-    <main class="content-body">
-      ${!pilot && s.tripState === TRIP_STATES.IDLE ? `
-        <section class="card rider-hero">
-          <div class="eyebrow">ATLANTA NIGHTLIFE · DEDICATED ROUNDTRIP RIDES</div>
-          <h1>Hop All Night.<br><span>Never Lose Your Ride.</span></h1>
-          <p>Book one dedicated pilot for your entire night out. Reserve 15, 30, or 60-minute standby blocks while you hit the lounge, grab late-night food, or change fits—with zero 2 AM surge and a guaranteed return home.</p>
-        </section>
-      ` : ''}
-
-      <section class="card trip-stage-card" style="padding:18px">
-        <div class="eyebrow">${pilot ? 'PILOT DASHBOARD' : 'TRIP STATUS'} · ${s.simulationMode ? 'AUTO-PILOT DEMO' : 'LIVE SESSION'}</div>
-        <h1 class="page-title" style="margin:6px 0">${stageCopy}</h1>
-        <p class="page-subtitle" style="margin-bottom:0">${esc(
-          s.notificationMessage ||
-            (pilot
-              ? 'Accept a request from the queue to pair portals and begin live telemetry.'
-              : 'Set your pickup and hops below to calculate an upfront roundtrip retainer.')
-        )}</p>
-        ${s.acceptedPilotName ? `
-          <div class="arrival-alert" role="status">
-            <strong>Assigned Pilot: ${esc(s.acceptedPilotName)}</strong>
-            <span>${esc(s.acceptedPilotVehicle || 'Verified SUV')} · Plate: ${esc(s.acceptedPilotPlate || 'ATL-HOP1')} · Deposit: ${s.depositStatus === 'HELD_DEMO' ? `Locked (${money(s.depositAmountCents || s.routeQuote?.fare?.upfrontDepositCents || 0)})` : 'Pending'}</span>
-          </div>
-        ` : ''}
-      </section>
-
-      ${renderDemoWalkthroughBar(s)}
-      <div class="primary-flow">${controls}</div>
-      ${renderCurbsideAndComms(s, role)}
-
-      ${s.tripState !== TRIP_STATES.IDLE ? renderLiveMap(s) : ''}
-      ${s.tripState !== TRIP_STATES.IDLE && s.routeQuote ? renderRouteQuote(s.routeQuote, s.passengerCount, s.holdDeposit) : ''}
-      ${s.tripState !== TRIP_STATES.IDLE && s.tripState !== TRIP_STATES.REQUESTED ? renderReturnWait(s, role) : ''}
-      ${s.tripState === TRIP_STATES.COMPLETED ? renderSettlement(s, role) : ''}
-
-      ${!pilot && s.tripState === TRIP_STATES.IDLE ? renderWhyTrickhopper() : ''}
-      ${renderRateCard()}
-
-      <div class="footer-disclaimer" style="margin-top:16px">
-        TRICKHOPPER Prototype · Built for live Atlanta multi-hop demonstration. Pilot actions stay operational even if the rider’s phone locks inside a venue.
-      </div>
-    </main>
-  </div>`;
-
-  const nextLiveMap = root.querySelector('#live-map');
-  if (retainedLiveMap && nextLiveMap) nextLiveMap.replaceWith(retainedLiveMap);
-  updateLiveMap(s);
-
-  // Wire up event listeners
-  document.getElementById('start-request')?.addEventListener('click', () => {
-    const gps = store.pendingFixes.rider;
-    if (store.getState().gpsActiveByRole.rider && gps && Date.now() - Date.parse(gps.timestamp) < 30000) {
-      store.capturePickup(gps);
-    } else {
-      telemetry.startLiveGPS('rider', fix => store.capturePickup(fix));
-    }
-  });
-  document.getElementById('use-demo-gps')?.addEventListener('click', () => {
-    telemetry.useAtlantaDemoFix('rider', fix => store.capturePickup(fix));
-  });
-
-  document.querySelectorAll('[data-stop-index]').forEach(input => {
-    input.addEventListener('input', event => {
-      const idx = Number(event.target.dataset.stopIndex);
-      const val = event.target.value;
-      store.state.stops[idx].destination = val;
-      store.state.stops[idx].selectedPlace = null;
-      store.state.routeQuote = null;
-      clearTimeout(input._sugTimer);
-      input._sugTimer = setTimeout(() => store.suggestStopAddress(idx, val), 180);
-    });
-  });
-
-  document.querySelectorAll('[data-suggest-stop]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const stopIdx = Number(btn.dataset.suggestStop);
-      const sugIdx = Number(btn.dataset.suggestIdx);
-      const place = store.getState().stops?.[stopIdx]?.suggestions?.[sugIdx];
-      if (place) store.setStopDestination(stopIdx, place.label || place.name, place);
-    });
-  });
-
-  document.querySelectorAll('[data-pick-stop]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const stopIdx = Number(btn.dataset.pickStop);
-      store.setStopDestination(stopIdx, btn.dataset.place, null);
-    });
-  });
-
-  document.querySelectorAll('[data-wait-stop]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      store.setStopWait(btn.dataset.waitMinutes, btn.dataset.waitStop);
-    });
-  });
-
-  document.getElementById('add-hop')?.addEventListener('click', () => store.addStop());
-  document.querySelectorAll('[data-remove-hop]').forEach(btn => {
-    btn.addEventListener('click', () => store.removeStop(btn.dataset.removeHop));
-  });
-
-  document.getElementById('passenger-count')?.addEventListener('change', event => {
-    store.state.passengerCount = Number(event.target.value) || 1;
-    store.notify();
-  });
-
-  document.getElementById('toggle-hold-deposit')?.addEventListener('change', event => {
-    store.state.holdDeposit = Boolean(event.target.checked);
-    store.notify();
-  });
-
-  document.getElementById('build-route')?.addEventListener('click', () => {
-    document.querySelectorAll('[data-stop-index]').forEach(input => {
-      const idx = Number(input.dataset.stopIndex);
-      if (store.state.stops[idx]) store.state.stops[idx].destination = input.value;
-    });
-    store.quoteDestination();
-  });
-
-  document.getElementById('request-estimated-trip')?.addEventListener('click', () => store.requestRide(false));
-  document.getElementById('request-demo-autopilot')?.addEventListener('click', () => store.requestRide(true));
-
-  document.getElementById('start-autopilot')?.addEventListener('click', () => store.startAutoPilot(true));
-  document.getElementById('step-autopilot')?.addEventListener('click', () => store.stepAutoPilot());
-  document.getElementById('pause-autopilot')?.addEventListener('click', () => store.pauseAutoPilot());
-
-  document.getElementById('pilot-name-input')?.addEventListener('input', e => {
-    store.state.pilotName = e.target.value;
-    sessionStorage.setItem('trickhopper_pilot_name', e.target.value);
-  });
-  document.getElementById('pilot-vehicle-input')?.addEventListener('input', e => {
-    store.state.pilotVehicle = e.target.value;
-    sessionStorage.setItem('trickhopper_pilot_vehicle', e.target.value);
-  });
-
-  document.querySelectorAll('[data-select-open-trip]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      store.selectOpenRequest(btn.dataset.selectOpenTrip);
-    });
-  });
-
-  document.getElementById('accept-request')?.addEventListener('click', () => {
-    telemetry.startLiveGPS('pilot', fix => store.claimOpenRequest(fix));
-  });
-  document.getElementById('accept-request-demo-gps')?.addEventListener('click', () => {
-    telemetry.useAtlantaDemoFix('pilot', fix => store.claimOpenRequest(fix));
-  });
-
-  document.getElementById('arrive-pickup')?.addEventListener('click', () => store.waitEvent('arrive_pickup'));
-  document.getElementById('start-outbound')?.addEventListener('click', () => store.waitEvent('start_outbound'));
-  document.getElementById('arrive-current-stop')?.addEventListener('click', () => store.waitEvent('arrive_stop'));
-  document.getElementById('start-next-hop')?.addEventListener('click', () => store.waitEvent('start_next_hop'));
-  document.getElementById('start-return-leg')?.addEventListener('click', () => store.waitEvent('start_return'));
-  document.getElementById('complete-ride')?.addEventListener('click', () => store.completeRide());
-
-  // Curbside Summon, Wait Extension, Cabin Safe-Hold, Re-Boarding PIN, and In-App Pings
-  document.getElementById('btn-summon-curb')?.addEventListener('click', () => store.sendPing('SUMMON_CURB'));
-  document.getElementById('btn-extend-15')?.addEventListener('click', () => store.extendWait(15));
-  document.getElementById('btn-ping-inside')?.addEventListener('click', () => store.sendPing('STILL_INSIDE'));
-  document.getElementById('btn-ping-ready')?.addEventListener('click', () => store.sendPing('READY_AT_CURB'));
-  document.getElementById('btn-pilot-staged')?.addEventListener('click', () => store.sendPing('STAGED_NEARBY'));
-  document.getElementById('btn-pilot-pulling')?.addEventListener('click', () => store.sendPing('PULLING_TO_CURB'));
-  document.getElementById('btn-pilot-hazards')?.addEventListener('click', () => store.sendPing('AT_CURB_HAZARDS'));
-  document.getElementById('btn-verify-pin')?.addEventListener('click', () => {
-    const pin = store.getState().boardingPin;
-    if (pin) store.verifyBoardingPin(pin);
-  });
-  document.querySelectorAll('[data-cabin-add]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      store.addCabinItem(btn.dataset.cabinAdd);
-    });
-  });
-  document.getElementById('btn-cabin-retrieve-all')?.addEventListener('click', () => store.retrieveCabinItems());
-
-  // Settlement listeners
-  document.getElementById('choose-cash')?.addEventListener('click', () => store.chooseSettlement('CASH'));
-  document.getElementById('choose-cashapp')?.addEventListener('click', () => store.chooseSettlement('CASHAPP'));
-  document.getElementById('choose-demo')?.addEventListener('click', () => store.chooseSettlement('DEMO_DIGITAL'));
-  document.getElementById('save-external-fare')?.addEventListener('click', () => store.externalPayment('propose', document.getElementById('external-fare')?.value));
-  document.getElementById('attest-sent')?.addEventListener('click', () => store.externalPayment('attest_sent', document.getElementById('sent-amount')?.value));
-  document.getElementById('attest-received')?.addEventListener('click', () => store.externalPayment('attest_received', document.getElementById('received-amount')?.value));
-  for (const id of ['pilot-sms-contact', 'rider-sms-contact']) {
-    document.getElementById(id)?.addEventListener('input', event => localStorage.setItem(`th_${role}_sms_contact`, event.target.value));
-  }
-  document.getElementById('pilot-cashapp-link')?.addEventListener('input', event => localStorage.setItem('th_pilot_cashapp_link', event.target.value));
-  document.getElementById('open-cashapp')?.addEventListener('click', event => {
-    event.preventDefault();
-    const href = cashAppHref(document.getElementById('pilot-cashapp-link')?.value);
-    if (href) window.open(href, '_blank', 'noopener,noreferrer');
-    else alert('Enter the pilot’s Cash App payment link (https://cash.app/$Tag).');
-  });
-  document.getElementById('send-sms')?.addEventListener('click', event => {
-    event.preventDefault();
-    const amount = store.getState().externalPayment?.amountCents;
-    if (amount === null || amount === undefined) return alert('Set the agreed trip amount first.');
-    const trip = String(store.getState().tripId || '').slice(0, 8).toUpperCase();
-    const contact = document.getElementById(role === 'rider' ? 'pilot-sms-contact' : 'rider-sms-contact')?.value || '';
-    const paymentLink = cashAppHref(document.getElementById('pilot-cashapp-link')?.value || localStorage.getItem('th_pilot_cashapp_link'));
-    const text =
-      role === 'rider'
-        ? `TRICKHOPPER ride ${trip} complete. Agreed Cash App balance: $${(amount / 100).toFixed(2)} USD. ${paymentLink || ''}`
-        : `TRICKHOPPER ride ${trip} complete. Confirmed $${(amount / 100).toFixed(2)} USD received via Cash App.`;
-    const href = smsHref(contact, text);
-    if (href) window.location.href = href;
-    else alert('Enter a valid phone number first.');
-  });
-  document.getElementById('confirm-cash')?.addEventListener('click', async () => {
-    const button = document.getElementById('confirm-cash');
-    const amount = document.getElementById('cash-amount')?.value;
-    button.disabled = true;
-    const ok = await store.confirmCash(amount);
-    if (!ok) button.disabled = false;
-  });
-  document.getElementById('propose-demo-fare')?.addEventListener('click', () => {
-    store.demoPayment('propose', Math.round(Number(document.getElementById('demo-fare')?.value) * 100));
-  });
-  document.getElementById('approve-demo-fare')?.addEventListener('click', () => store.demoPayment('approve'));
-  document.getElementById('reject-demo-fare')?.addEventListener('click', () => store.demoPayment('reject'));
-  document.getElementById('demo-success')?.addEventListener('click', () => store.demoPayment('simulate_success'));
-  document.getElementById('demo-decline')?.addEventListener('click', () => store.demoPayment('simulate_decline'));
-  document.getElementById('reset-trip')?.addEventListener('click', () => store.resetTrip());
-
-  if (focusedInput) {
-    const input = document.getElementById(focusedInput.id);
-    if (input) {
-      input.focus({ preventScroll: true });
-      try {
-        input.setSelectionRange(focusedInput.start, focusedInput.end);
-      } catch {}
-    }
-  }
+  let smsControls = '';
+  if (s.tripState === TRIP_STATES.IDLE && !pilot && !s.bookingPickup) controls = `<section class="card nightlife-planner booking-card"><div class="booking-step-label"><span>1</span><span>Pickup</span></div><h2 class="booking-title">Where should we pick you up?</h2><p class="booking-intro">Use your phone’s current location to start your ride request.</p><div class="planner-origin"><div><span class="eyebrow">PICKUP LOCATION</span><strong>Current location</strong><small>Your location is shared only after you allow it.</small></div><span class="live-pill">${s.gpsRequestingByRole?.rider?'LOCATING…':'GPS REQUIRED'}</span></div>${renderRiderSmsContact(s)}<button class="btn-primary booking-action" id="start-request" ${s.gpsRequestingByRole?.rider?'disabled':''}>${s.gpsRequestingByRole?.rider?'Finding your location…':'Use current location'}</button>${s.gpsRequestingByRole?.rider?'<p class="gps-waiting" role="status">Waiting for a GPS fix. Your ride request has not been sent.</p>':''}${s.gpsErrors.rider?`<p class="gps-inline-error" role="alert">${esc(s.gpsErrors.rider)}</p>`:''}<p class="booking-footnote">Your browser will ask for location access. No pickup pin is guessed or saved.</p></section>`;
+  if (s.tripState === TRIP_STATES.IDLE && !pilot && s.bookingPickup) controls = `<section class="card destination-card nightlife-planner booking-card"><div class="booking-step-label"><span>2</span><span>Destination</span></div><h2 class="booking-title">Where are you going?</h2><p class="booking-intro">Your pickup is confirmed. Search and select the exact place.</p><div class="planner-origin compact-origin"><div><span class="eyebrow">PICKUP · CURRENT LOCATION</span><strong>Location ready</strong><small>GPS accuracy ±${Math.round(s.bookingPickup.accuracy)} m</small></div><span class="live-pill">READY</span></div>${renderRiderSmsContact(s)}<div class="hop-list">${(s.stops||[]).map((stop,index)=>`<article class="hop-card"><div class="hop-heading"><strong>${index===0?'Destination':`Stop ${index+1}`}</strong>${s.stops.length>1?`<button type="button" class="remove-hop" data-remove-hop="${index}" aria-label="Remove stop ${index+1}">Remove</button>`:''}</div><label class="eyebrow" for="destination-input-${index}">DESTINATION</label><input class="destination-input" id="destination-input-${index}" data-destination-index="${index}" maxlength="180" value="${esc(stop.destination)}" placeholder="Type a street address or place name" autocomplete="off" aria-autocomplete="list" aria-expanded="${Boolean(stop.suggestions?.length)}" aria-controls="address-suggestions-${index}"><div class="address-search-hint" role="status">${stop.suggesting?'Searching nearby places…':stop.selectedAddress?'Address confirmed.':stop.suggestionUnavailable?'Use the full-address search below.':'Type a few letters, then choose the matching address below.'}</div>${stop.selectedAddress?`<div class="selected-address"><strong>Selected destination</strong><span>${esc(stop.selectedAddress.label)}</span></div>`:''}${stop.suggestions?.length?`<div class="address-results" id="address-suggestions-${index}" role="listbox" aria-label="Address suggestions for stop ${index+1}">${stop.suggestions.map((result,resultIndex)=>`<button type="button" class="address-result" role="option" aria-selected="false" data-mapbox-suggestion="${index}" data-result-index="${resultIndex}"><strong>${esc(result.label)}</strong><small>${esc(result.name||'Address or place')}</small></button>`).join('')}<div class="address-attribution">${stop.suggestAttribution==='Google Maps'?'<span translate="no">Google Maps</span>': '© OpenStreetMap contributors via Photon'}</div></div>`:''}${stop.selectingSuggestion?'<p class="address-search-hint" role="status">Confirming selected place…</p>':''}${stop.suggestError?`<p class="cash-dispute" role="alert">${esc(stop.suggestError)}</p>`:''}${stop.suggestError&&!stop.suggesting?`<button type="button" class="btn-secondary address-search-button" data-address-search="${index}" ${stop.addressSearching?'disabled':''}>${stop.addressSearching?'Searching…':'Search full address instead'}</button>`:''}${stop.addressError?`<p class="cash-dispute" role="alert">${esc(stop.addressError)}</p>`:''}${stop.addressResults?.length?`<div class="address-results" role="listbox" aria-label="Matching places for stop ${index+1}">${stop.addressResults.map((result,resultIndex)=>`<button type="button" class="address-result" role="option" data-address-result="${index}" data-result-index="${resultIndex}"><strong>${esc(result.label)}</strong><small>${Number(result.lat).toFixed(5)}, ${Number(result.lng).toFixed(5)}</small></button>`).join('')}</div><div class="address-attribution">© OpenStreetMap contributors</div>`:''}<div class="wait-choice"><div class="wait-choice-title">How long should the pilot wait?</div><div class="wait-choice-buttons">${[15,30,60].map(minutes=>`<button class="btn-secondary wait-choice-button ${Number(stop.waitMinutes)===minutes?'selected':''}" data-stop-index="${index}" data-wait-minutes="${minutes}" aria-pressed="${Number(stop.waitMinutes)===minutes}">${minutes} min <strong>${money(minutes*RATE_CARD.perWaitMinuteCents)}</strong></button>`).join('')}</div><small class="booking-footnote">${money(RATE_CARD.perWaitMinuteCents)} per minute · included in estimate · USD</small></div>${index===0?`<div class="spot-picks"><span class="eyebrow">POPULAR ATLANTA DESTINATIONS</span><div class="spot-pick-list">${['Ponce City Market, Atlanta, GA','Magic City, Atlanta, GA','The Battery Atlanta, Atlanta, GA','Krog Street Market, Atlanta, GA'].map(place=>`<button type="button" class="spot-pick" data-place="${esc(place)}">${esc(place.split(',')[0])}</button>`).join('')}</div></div>`:''}</article>`).join('')}</div>${s.stops.length<3?'<button class="add-hop" id="add-hop">+ Add another stop</button>':''}<div class="planner-return"><strong>Return included</strong><span>Your ride returns to the pickup location after the final stop.</span></div><label class="eyebrow" for="passenger-count">PASSENGERS</label><select id="passenger-count" class="destination-input">${[1,2,3,4].map(n=>`<option value="${n}" ${Number(s.passengerCount||1)===n?'selected':''}>${n} ${n===1?'passenger':'passengers'}</option>`).join('')}</select>${s.routeError?`<p class="cash-dispute" role="alert">${esc(s.routeError)}</p>`:''}<button class="btn-secondary" id="build-route" ${s.routeLoading?'disabled':''}>${s.routeLoading?'Calculating route…':'Get fare estimate'}</button>${s.routeQuote?`${renderRouteQuote(s.routeQuote)}<button class="btn-primary booking-action" id="request-estimated-trip" ${s.requestSubmitting||!s.riderAvailability?.ready?'disabled':''}>${s.requestSubmitting?'Sending request…':`Request ride · ${money(s.routeQuote.fare?.totalCents||0)} USD`}</button><p class="booking-footnote">${s.riderAvailability?.ready?'Your request goes to the pilot queue. No pilot is assigned until a pilot accepts.':'Ride requests are available when a pilot is online and the ride lane is open.'}</p>`:''}</section>`;
+  if (pilot && s.tripState === TRIP_STATES.IDLE) controls = `<section class="card"><div class="eyebrow">DRIVER AVAILABILITY</div><h2 class="cash-title">${s.driverAvailable?'You’re online':'You’re offline'}</h2><p class="page-subtitle">${s.driverAvailable?'Your portal is checking for the next request.':'Go online when you’re ready to receive a controlled test request.'}</p><button class="btn-${s.driverAvailable?'secondary':'primary'}" id="driver-availability">${s.driverAvailable?'Go offline':'Go online'}</button>${s.driverLoginError?`<p class="cash-dispute" role="alert">${esc(s.driverLoginError)}</p>`:''}<button class="btn-secondary" id="driver-logout" style="margin-top:10px">Sign out</button></section>`;
+  if (!pilot && [TRIP_STATES.CANCELLED,TRIP_STATES.EXPIRED].includes(s.tripState)) controls = `<section class="card ${s.tripState==='EXPIRED'?'request-expired-card':''}" role="alert"><div class="eyebrow">${s.tripState==='EXPIRED'?'NOT BOOKED · NO PILOT ACCEPTED':'REQUEST CANCELLED'}</div><h2 class="request-expired-title">${s.tripState==='EXPIRED'?'No pilot accepted this request':'This request was cancelled'}</h2><p class="page-subtitle">${esc(s.notificationMessage||'This request is closed. No pilot was dispatched.')}</p><button class="btn-primary" id="reset-trip">Try another request</button></section>`;
+  if (pilot && s.tripState === TRIP_STATES.REQUESTED && !store.token) controls = `<section class="card"><div class="eyebrow">NEW RIDE REQUEST</div>${s.destination?`<p class="page-subtitle">Destination: ${esc(s.destination.label)}</p>`:''}<p class="page-subtitle">Party size: ${Number(s.passengerCount||1)} · request detail only. Confirm vehicle capacity before accepting.</p><p class="page-subtitle">Accepting requires a fresh GPS fix. Tap below and allow location access; the ride will connect only after GPS is received. ${s.smsConfigured?'TRICKHOPPER will send a confirmation text.':'After accepting, open Messages on this device to send the rider a confirmation. No text is sent automatically.'}</p>${s.gpsActiveByRole?.pilot?'<p class="live-pill" role="status">PILOT GPS READY</p>':''}${s.gpsErrors?.pilot?`<p class="gps-inline-error" role="alert">${esc(s.gpsErrors.pilot)} Then tap the button to retry acceptance.</p>`:''}<button class="btn-primary" id="accept-request" ${s.gpsRequestingByRole?.pilot?'disabled':''}>${s.gpsRequestingByRole?.pilot?'Getting pilot GPS…':s.gpsErrors?.pilot?'Retry GPS & accept':'Accept request · share live GPS →'}</button>${s.driverLoginError?`<p class="cash-dispute" role="alert">${esc(s.driverLoginError)}</p>`:''}</section>`;
+  const activeTripStates=[TRIP_STATES.EN_ROUTE,TRIP_STATES.WAITING_PICKUP,TRIP_STATES.ACTIVE,TRIP_STATES.WAITING_HOP,TRIP_STATES.WAITING_RETURN,TRIP_STATES.RETURNING];
+  const arrivalTextPending=Boolean(s.pickupArrivedAt&&s.pickupArrivalSms?.status!=='PILOT_CONFIRMED_SENT'&&s.pickupArrivalSms?.status!=='ACCEPTED_BY_PROVIDER');
+  const acceptanceTextPending=s.smsConfirmation?.status==='PILOT_SMS_READY';
+  const completionTextPending=s.completionSms?.status==='PILOT_SMS_READY';
+  const smsFallbackNeeded=s.pickupArrivedAt?arrivalTextPending:acceptanceTextPending;
+  if(pilot&&activeTripStates.includes(s.tripState)&&s.smsRecipientPhone&&(!s.smsConfigured||s.pickupArrivalSms?.status==='FAILED'||!smsFallbackNeeded))smsControls=`<section class="card sms-action-card"><div class="eyebrow">RIDER TEXT · PILOT DEVICE</div><h2 class="cash-title">${s.pickupArrivedAt?'Tell the rider you’ve arrived':'Send the rider an update'}</h2><p class="page-subtitle">${s.pickupArrivedAt?'Open the prefilled pickup-arrival text in Messages, review it, then tap Send.':'Open the prefilled acceptance text in Messages, review it, then tap Send.'} Carrier delivery is not verified here.</p><a class="btn-primary" style="display:block;text-align:center;text-decoration:none" href="${esc(pilotSmsLink(s.smsRecipientPhone,s))}">${s.pickupArrivedAt?'Open Messages · arrival alert →':'Open Messages · acceptance text →'}</a>${arrivalTextPending?'<button class="btn-secondary" id="pilot-text-sent" data-sms-milestone="pickup_arrival" style="margin-top:10px">I sent the arrival text</button>':!s.pickupArrivedAt&&acceptanceTextPending?'<button class="btn-secondary" id="pilot-text-sent" data-sms-milestone="acceptance" style="margin-top:10px">I sent the acceptance text</button>':''}${s.pickupArrivalSms?.status==='PILOT_CONFIRMED_SENT'?'<p class="live-pill" style="margin-top:10px">PILOT MARKED ARRIVAL TEXT SENT · DELIVERY UNVERIFIED</p>':''}${s.driverLoginError?`<p class="cash-dispute" role="alert">${esc(s.driverLoginError)}</p>`:''}</section>`;
+  if (pilot && s.tripState === TRIP_STATES.WAITING_PICKUP) controls = `<p class="page-subtitle">The pickup wait is visible to both people. Tap when the rider boards to stop that clock and start the trip.</p>`;
+  if (s.tripState === TRIP_STATES.ACTIVE && pilot) controls = `<p class="page-subtitle">Record each stop arrival in order. The next hop becomes available after its shared reserved wait is closed.</p>`;
+  if (s.tripState === TRIP_STATES.WAITING_HOP && pilot) controls = `<p class="page-subtitle">The current stop timer is shared. Depart when the rider is ready to continue to the next hop.</p>`;
+  if (s.tripState === TRIP_STATES.WAITING_RETURN && pilot) controls = `<p class="page-subtitle">The return-stop wait is visible to both people. Start the return leg when the rider is ready.</p>`;
+  if (s.tripState === TRIP_STATES.RETURNING && pilot) controls = `<button class="btn-primary" id="complete-ride" ${!ownActive || !own || (s.fixCounts.pilot||0)<2 ? 'disabled' : ''}>Complete return trip with GPS record →</button>`;
+  if (s.tripState === TRIP_STATES.COMPLETED) controls = s.simulationMode?'':`${pilot&&s.smsRecipientPhone?`<section class="card sms-action-card"><div class="eyebrow">RIDER TEXT · PILOT DEVICE</div><h2 class="cash-title">Confirm the trip is complete</h2><p class="page-subtitle">Open the prefilled completion text in Messages and tap Send. TRICKHOPPER records your confirmation, not carrier delivery.</p><a class="btn-primary" style="display:block;text-align:center;text-decoration:none" href="${esc(pilotSmsLink(s.smsRecipientPhone,s))}">Open Messages · trip complete →</a>${completionTextPending?'<button class="btn-secondary" id="pilot-text-sent" data-sms-milestone="completion" style="margin-top:10px">I sent the completion text</button>':s.completionSms?.status==='PILOT_CONFIRMED_SENT'?'<p class="live-pill" style="margin-top:10px">PILOT MARKED COMPLETION TEXT SENT · DELIVERY UNVERIFIED</p>':''}</section>`:''}<button class="btn-secondary" id="reset-trip">Clear trip and start over</button>`;
+  controls += smsControls;
+  const otherLocation = s.liveLocations[other];
+  root.innerHTML = `<div class="app-shell ${pilot?'pilot-shell':'rider-shell'}">${renderHeader(s)}<div class="demo-banner ${s.simulationMode?'simulation-banner':''}" role="note"><strong>${s.simulationMode?'SIMULATION':'CONTROLLED TEST'}</strong><span>${s.simulationMode?'Generated coordinates only · no vehicle or payment.':'Live GPS and trip status are shared after permission.'}</span></div><main class="content-body">
+    ${!pilot&&s.tripState===TRIP_STATES.IDLE?`<section class="card rider-hero"><div class="eyebrow">ATLANTA NIGHTLIFE · ROUNDTRIP RIDES</div><h1>Hop All Night.<br><span>Never Lose Your Ride.</span></h1><p>Our pilots can wait curbside while you pre-game, visit a lounge, grab a bite, or change fits. Plan stops, reserved waits, and a return to your pickup in one request.</p></section>`:''}
+    <section class="card trip-stage-card" style="padding:20px">${!pilot&&s.tripState===TRIP_STATES.IDLE?`<div class="rider-availability ${s.riderAvailability?.ready?'ready':s.riderAvailability?.status==='UNKNOWN'?'unknown':'unavailable'}" role="status" aria-live="polite"><span class="availability-dot"></span><strong>${s.riderAvailability?.ready?'READY':s.riderAvailability?.status==='UNKNOWN'?'CHECKING AVAILABILITY':'NO PILOT AVAILABLE'}</strong><span>${esc(s.riderAvailability?.message||'Checking whether a pilot is available…')}</span></div>`:''}<div class="eyebrow">TRIP STATUS · ${s.simulationMode?'SIMULATION':'LIVE STATUS'}</div><h1 class="page-title" style="margin:8px 0">${stageCopy}</h1><p class="page-subtitle">${s.notificationMessage ? esc(s.notificationMessage) : pilot ? (s.tripState===TRIP_STATES.IDLE?'Your pilot portal is ready. New requests appear here.':s.tripState==='REQUESTED'?'Review and accept the request to share live location.':'New ride requests appear here. Accepting connects the trip.') : s.tripState===TRIP_STATES.IDLE?'Enter your destination to see the fare before you request a ride.':'Ride updates and location sharing appear here as the trip progresses.'}</p>${!pilot&&s.acceptedPilotName?`<div class="arrival-alert" role="status"><strong>Pilot accepted · ${esc(s.acceptedPilotName)}</strong><span>${s.acceptedPilotVehicle?esc(s.acceptedPilotVehicle):'Vehicle details have not been provided.'}${s.acceptedPilotPlate?` · Plate ${esc(s.acceptedPilotPlate)}`:''}</span>${s.acceptedPilotPhone?`<a class="btn-secondary" style="display:block;margin-top:8px;text-align:center;text-decoration:none" href="${esc(smsHref(s.acceptedPilotPhone,`TRICKHOPPER ride ${String(s.tripId||'').slice(0,8).toUpperCase()}: `))}">Open Messages · text pilot →</a>`:''}</div>`:''}${!pilot&&s.pickupArrivedAt?`<div class="arrival-alert" role="status"><strong>Your pilot has arrived at pickup</strong><span>${new Date(s.pickupArrivedAt).toLocaleTimeString()} · ${s.pickupArrivalSms?.status==='ACCEPTED_BY_PROVIDER'?'A text was queued; carrier delivery is unverified.':s.pickupArrivalSms?.status==='PILOT_CONFIRMED_SENT'?'The pilot marked the text sent; delivery is unverified.':'Arrival is confirmed in the app. The pilot can send a text from Messages.'}</span></div>`:''}${s.smsConfirmation?.status==='ACCEPTED_BY_PROVIDER'?'<div class="live-pill">RIDER SMS QUEUED · DELIVERY STATUS MAY UPDATE</div>':s.smsConfirmation?.status==='PILOT_SMS_READY'?'<div class="live-pill">PILOT CAN SEND CONFIRMATION FROM THEIR PHONE</div>':s.smsConfirmation?.status==='PILOT_CONFIRMED_SENT'?'<div class="live-pill">PILOT MARKED TEXT SENT · CARRIER DELIVERY UNVERIFIED</div>':''}${s.tripState===TRIP_STATES.COMPLETED&&s.completionSms?.status==='PILOT_SMS_READY'?'<div class="live-pill" role="status">TRIP COMPLETE · PILOT CAN SEND A TEXT UPDATE</div>':s.completionSms?.status==='PILOT_CONFIRMED_SENT'?'<div class="live-pill" role="status">PILOT MARKED COMPLETION TEXT SENT · DELIVERY UNVERIFIED</div>':''}</section>
+    <div class="primary-flow">${controls}</div>
+    ${!pilot&&s.tripState===TRIP_STATES.IDLE?renderWhyTrickhopper():''}
+    ${(s.tripState!==TRIP_STATES.IDLE||pilot)?`<details class="details-card gps-details"><summary>${ownActive?'Live location sharing':'Location details'}</summary><section class="card" style="margin-top:12px"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><div><strong>${s.simulationMode?'Simulated location stream':'Your live GPS'}</strong><div style="font-size:12px;color:var(--text-secondary);margin-top:4px">${ownActive && own ? (s.simulationMode?'Generated coordinates · simulation only':'Sharing live device location') : `Location is requested when you ${pilot?'accept the request':'request pickup'}.`}</div></div>${ownActive&&!s.simulationMode?'<button id="gps-toggle" class="btn-secondary">Stop sharing</button>':''}</div>${s.gpsErrors[role]?`<p role="alert" style="color:#fca5a5">${esc(s.gpsErrors[role])}</p>`:''}${own?`<div class="gps-line">${Number(own.lat).toFixed(6)}, ${Number(own.lng).toFixed(6)} · ±${Math.round(own.accuracy)} m · ${new Date(own.timestamp).toLocaleTimeString()}</div>`:''}</section></details>`:''}
+    ${!pilot&&s.tripState===TRIP_STATES.REQUESTED?`<section class="card request-status-card" role="status" aria-live="polite"><div class="eyebrow">REQUEST SENT · NOT BOOKED YET</div><strong>Waiting for a pilot to accept</strong><div class="request-countdown"><span>Request expires in</span><b id="request-countdown">${formatRequestCountdown(s.requestExpiresAt)}</b></div><p class="page-subtitle">Your ride is only confirmed after a pilot accepts. If no one accepts before the timer ends, this request closes and you can try again.</p><button class="btn-secondary" id="cancel-request">Cancel request</button></section>`:''}${!['IDLE','CANCELLED','EXPIRED'].includes(s.tripState)?renderLiveMap(s):''}
+    ${!['IDLE','CANCELLED','EXPIRED'].includes(s.tripState)&&s.routeQuote?renderRouteQuote(s.routeQuote):''}
+    ${!['IDLE','CANCELLED','EXPIRED'].includes(s.tripState)?`<details class="details-card"><summary>Trip details and GPS record</summary><section class="card" style="margin-top:12px"><div class="eyebrow">OTHER DEVICE LOCATION</div><strong style="display:block;margin-top:6px">${otherLocation ? (s.simulationMode?'Simulated location received':s.gpsActiveByRole[other]?'Live location received':'Last GPS fix received') : 'Waiting for GPS fix'}</strong>${otherLocation?`<div class="gps-line">${Number(otherLocation.lat).toFixed(6)}, ${Number(otherLocation.lng).toFixed(6)} · ±${Math.round(otherLocation.accuracy)} m · ${new Date(otherLocation.timestamp).toLocaleTimeString()}</div>`:`<p class="page-subtitle">The other person must open their portal and allow location access.</p>`}<div class="eyebrow" style="margin-top:16px">${s.simulationMode?'SIMULATION METRICS':'TRIP TELEMETRY'}</div><div class="telemetry-stats"><div><b>${s.fixCounts.rider||0}</b><small>Customer GPS fixes</small></div><div><b>${s.fixCounts.pilot||0}</b><small>Driver GPS fixes</small></div><div><b>${Number(s.tripDistanceMiles||0).toFixed(2)} mi</b><small>Recorded driver track</small></div></div><p class="page-subtitle" style="margin-bottom:0">${s.simulationMode?'Generated coordinates; no device GPS was read.':'Live browser GPS and trip events are recorded by the connected service. Route estimates use OpenStreetMap services; they are not traffic-aware.'}</p>${s.pickupArrivedAt?`<div class="gps-line">Pickup arrival recorded ${new Date(s.pickupArrivedAt).toLocaleString()}</div>`:''}${s.rideStartedAt?`<div class="gps-line">Ride start recorded ${new Date(s.rideStartedAt).toLocaleString()}</div>`:''}${s.destinationArrivedAt?`<div class="gps-line">Drop-off arrival recorded ${new Date(s.destinationArrivedAt).toLocaleString()}</div>`:''}${s.returnStartedAt?`<div class="gps-line">Return leg started ${new Date(s.returnStartedAt).toLocaleString()}</div>`:''}${s.rideCompletedAt?`<div class="gps-line">Completed ${new Date(s.rideCompletedAt).toLocaleString()}</div>`:''}</section></details>`:''}
+    ${s.tripState!=='IDLE'&&s.tripState!=='REQUESTED'?renderReturnWait(s,role):''}
+    ${renderRateCard()}
+    ${s.tripState===TRIP_STATES.COMPLETED?renderSettlement(s,role):''}
+    </main></div>`;
+  const nextLiveMap=root.querySelector('#live-map');if(retainedLiveMap&&nextLiveMap)nextLiveMap.replaceWith(retainedLiveMap);updateLiveMap(s);
+  document.getElementById('gps-toggle')?.addEventListener('click',()=> ownActive ? telemetry.stopLiveGPS(role) : telemetry.startLiveGPS(role));
+  document.getElementById('rider-phone')?.addEventListener('input',event=>{store.state.riderPhone=event.target.value;store.state.routeError=null});
+  document.getElementById('rider-sms-consent')?.addEventListener('change',event=>{store.state.smsConsent=event.target.checked;store.state.routeError=null});
+  document.getElementById('pilot-text-sent')?.addEventListener('click',event=>store.confirmPilotSmsSent(event.currentTarget.dataset.smsMilestone||'acceptance'));
+  document.getElementById('start-request')?.addEventListener('click',()=>{const gps=store.pendingFixes.rider;if(store.getState().gpsActiveByRole.rider&&gps&&Date.now()-Date.parse(gps.timestamp)<30000)store.capturePickup(gps);else telemetry.startLiveGPS('rider',fix=>store.capturePickup(fix))});
+  document.getElementById('build-route')?.addEventListener('click',()=>{document.querySelectorAll('[data-destination-index]').forEach(input=>store.state.stops[Number(input.dataset.destinationIndex)].destination=input.value);store.quoteDestination()});
+  document.querySelectorAll('[data-place]').forEach(button=>button.addEventListener('click',()=>store.setDestinationText(button.dataset.place,0)));
+  document.getElementById('passenger-count')?.addEventListener('change',event=>{store.state.passengerCount=Number(event.target.value);store.routeQuote=null;store.notify()});
+  document.querySelectorAll('[data-wait-minutes]').forEach(button=>button.addEventListener('click',()=>store.setStopWait(button.dataset.waitMinutes,button.dataset.stopIndex)));
+  document.querySelectorAll('[data-destination-index]').forEach(input=>{input.addEventListener('input',event=>{const index=Number(event.target.dataset.destinationIndex),stop=store.state.stops[index],query=event.target.value.trim();if(stop){const changed=stop.destination!==event.target.value;stop.destination=event.target.value;if(changed)stop.suggestionUnavailable=false;stop.addressId=null;stop.selectedAddress=null;stop.addressResults=[];stop.addressError=null;stop.suggestions=[];stop.suggesting=false;stop.suggestRequest++;clearTimeout(stop.suggestTimer);if(!stop.suggestionUnavailable){stop.suggestError=null;if(query.length>=3)stop.suggestTimer=setTimeout(()=>store.suggestAddresses(index,query),300)}}store.state.routeQuote=null;const card=event.target.closest('.hop-card');card?.querySelector('.selected-address')?.remove();card?.querySelectorAll('.address-results,.address-attribution,.cash-dispute').forEach(item=>item.remove())});input.addEventListener('keydown',event=>{const options=[...event.target.closest('.hop-card').querySelectorAll('[data-mapbox-suggestion]')],current=options.indexOf(document.activeElement);if(event.key==='ArrowDown'&&options.length){event.preventDefault();options[Math.min(current+1,options.length-1)].focus()}else if(event.key==='ArrowUp'&&options.length){event.preventDefault();if(current<=0)event.target.focus();else options[current-1].focus()}else if(event.key==='Escape'){options.forEach(option=>option.blur());event.target.focus()}})});
+  document.querySelectorAll('[data-mapbox-suggestion]').forEach(button=>button.addEventListener('click',()=>{const stopIndex=Number(button.dataset.mapboxSuggestion),result=store.state.stops[stopIndex]?.suggestions?.[Number(button.dataset.resultIndex)];store.selectSuggestedAddress(stopIndex,result)}));
+  document.querySelectorAll('[data-address-search]').forEach(button=>button.addEventListener('click',()=>store.searchAddresses(Number(button.dataset.addressSearch))));
+  document.querySelectorAll('[data-address-result]').forEach(button=>button.addEventListener('click',()=>{const stopIndex=Number(button.dataset.addressResult),result=store.state.stops[stopIndex]?.addressResults?.[Number(button.dataset.resultIndex)];store.selectAddress(stopIndex,result)}));
+  document.getElementById('add-hop')?.addEventListener('click',()=>store.addStop());
+  document.querySelectorAll('[data-remove-hop]').forEach(button=>button.addEventListener('click',()=>store.removeStop(Number(button.dataset.removeHop))));
+  document.getElementById('request-estimated-trip')?.addEventListener('click',()=>{const inputs=[...document.querySelectorAll('[data-destination-index]')],quote=store.getState().routeQuote;if(inputs.some((input,index)=>input.value.trim()!==quote?.hops?.[index]?.destination?.query)){store.state.routeError='A destination changed. Recalculate the estimate before requesting.';store.state.routeQuote=null;store.notify();return}store.requestRide()});
+  document.getElementById('cancel-request')?.addEventListener('click',()=>store.cancelRequest());
+  document.getElementById('accept-request')?.addEventListener('click',()=>telemetry.startLiveGPS('pilot',fix=>store.claimOpenRequest(fix)));
+  document.getElementById('driver-availability')?.addEventListener('click',()=>store.setDriverAvailability(!store.getState().driverAvailable));
+  document.getElementById('driver-logout')?.addEventListener('click',()=>store.logoutDriver());
+  document.getElementById('complete-ride')?.addEventListener('click',()=>store.completeRide());
+  document.getElementById('arrive-pickup')?.addEventListener('click',()=>store.waitEvent('arrive_pickup'));
+  document.getElementById('start-outbound')?.addEventListener('click',()=>store.waitEvent('start_outbound'));
+  document.getElementById('arrive-return-stop')?.addEventListener('click',()=>store.waitEvent('arrive_dropoff'));
+  document.getElementById('arrive-current-stop')?.addEventListener('click',()=>store.waitEvent('arrive_stop'));
+  document.getElementById('start-next-hop')?.addEventListener('click',()=>store.waitEvent('start_next_hop'));
+  document.getElementById('start-return-leg')?.addEventListener('click',()=>store.waitEvent('start_return'));
+  document.getElementById('choose-cash')?.addEventListener('click',()=>store.chooseSettlement('CASH'));
+  document.getElementById('choose-cashapp')?.addEventListener('click',()=>store.chooseSettlement('CASHAPP'));
+  document.getElementById('choose-demo')?.addEventListener('click',()=>store.chooseSettlement('DEMO_DIGITAL'));
+  document.getElementById('save-external-fare')?.addEventListener('click',()=>store.externalPayment('propose',document.getElementById('external-fare')?.value));
+  document.getElementById('attest-sent')?.addEventListener('click',()=>store.externalPayment('attest_sent',document.getElementById('sent-amount')?.value));
+  document.getElementById('attest-received')?.addEventListener('click',()=>store.externalPayment('attest_received',document.getElementById('received-amount')?.value));
+  for(const id of ['pilot-sms-contact','rider-sms-contact'])document.getElementById(id)?.addEventListener('input',event=>localStorage.setItem(`th_${role}_sms_contact`,event.target.value));
+  document.getElementById('pilot-cashapp-link')?.addEventListener('input',event=>localStorage.setItem('th_pilot_cashapp_link',event.target.value));
+  document.getElementById('open-cashapp')?.addEventListener('click',event=>{event.preventDefault();const href=cashAppHref(document.getElementById('pilot-cashapp-link')?.value);if(href)window.open(href,'_blank','noopener,noreferrer');else alert('Enter the pilot’s Cash App payment link on cash.app that is approved for this use.')});
+  document.getElementById('send-sms')?.addEventListener('click',event=>{event.preventDefault();const amount=store.getState().externalPayment?.amountCents;if(amount===null||amount===undefined)return alert('Set the agreed trip amount first.');const trip=String(store.getState().tripId||'').slice(0,8).toUpperCase();const contact=document.getElementById(role==='rider'?'pilot-sms-contact':'rider-sms-contact')?.value||'';const paymentLink=cashAppHref(document.getElementById('pilot-cashapp-link')?.value||localStorage.getItem('th_pilot_cashapp_link'));const text=role==='rider'?`TRICKHOPPER ride ${trip} is complete. Agreed external Cash App amount: $${(amount/100).toFixed(2)} USD. Cash App: ${paymentLink||'[pilot payment link]'}. Please confirm once received.`:`TRICKHOPPER ride ${trip} is complete. I confirm I received $${(amount/100).toFixed(2)} USD externally via Cash App. Please confirm on your end.`;const href=smsHref(contact,text);if(href)window.location.href=href;else alert('Enter a valid phone number first.')});
+  document.getElementById('confirm-cash')?.addEventListener('click',async()=>{const button=document.getElementById('confirm-cash'),amount=document.getElementById('cash-amount')?.value;button.disabled=true;const ok=await store.confirmCash(amount);if(!ok)button.disabled=false});
+  document.getElementById('propose-demo-fare')?.addEventListener('click',()=>store.demoPayment('propose',Math.round(Number(document.getElementById('demo-fare')?.value)*100)));
+  document.getElementById('approve-demo-fare')?.addEventListener('click',()=>store.demoPayment('approve'));
+  document.getElementById('reject-demo-fare')?.addEventListener('click',()=>store.demoPayment('reject'));
+  document.getElementById('demo-success')?.addEventListener('click',()=>store.demoPayment('simulate_success'));
+  document.getElementById('demo-decline')?.addEventListener('click',()=>store.demoPayment('simulate_decline'));
+  document.getElementById('reset-trip')?.addEventListener('click',()=>store.resetTrip());
+  document.getElementById('btnToggleWakeLock')?.addEventListener('click',()=>telemetry.requestWakeLock());
+  if(focusedAddress){const input=document.getElementById(focusedAddress.id);if(input){input.focus({preventScroll:true});try{input.setSelectionRange(focusedAddress.start,focusedAddress.end)}catch{}}}
 }
-
-let returnWaitTicker = null;
-store.subscribe(state => {
-  render();
-  if (state.tripState === TRIP_STATES.COMPLETED) telemetry.stopLiveGPS(state.activeMode);
-  if ([TRIP_STATES.WAITING_PICKUP, TRIP_STATES.WAITING_HOP, TRIP_STATES.WAITING_RETURN].includes(state.tripState) && !returnWaitTicker) {
-    returnWaitTicker = setInterval(render, 1000);
-  }
-  if (![TRIP_STATES.WAITING_PICKUP, TRIP_STATES.WAITING_HOP, TRIP_STATES.WAITING_RETURN].includes(state.tripState) && returnWaitTicker) {
-    clearInterval(returnWaitTicker);
-    returnWaitTicker = null;
-  }
-});
-render();
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(items => items.forEach(item => item.unregister()));
-}
+let returnWaitTicker=null,requestWaitTicker=null;
+store.subscribe(state=>{render();if(state.tripState===TRIP_STATES.COMPLETED)telemetry.stopLiveGPS(state.activeMode);if([TRIP_STATES.WAITING_PICKUP,TRIP_STATES.WAITING_HOP,TRIP_STATES.WAITING_RETURN].includes(state.tripState)&&!returnWaitTicker)returnWaitTicker=setInterval(render,1000);if(![TRIP_STATES.WAITING_PICKUP,TRIP_STATES.WAITING_HOP,TRIP_STATES.WAITING_RETURN].includes(state.tripState)&&returnWaitTicker){clearInterval(returnWaitTicker);returnWaitTicker=null}if(state.tripState===TRIP_STATES.REQUESTED&&!requestWaitTicker)requestWaitTicker=setInterval(()=>{const countdown=document.getElementById('request-countdown');if(countdown)countdown.textContent=formatRequestCountdown(store.getState().requestExpiresAt)},1000);if(state.tripState!==TRIP_STATES.REQUESTED&&requestWaitTicker){clearInterval(requestWaitTicker);requestWaitTicker=null}}); render();
+if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(items => items.forEach(item => item.unregister()));

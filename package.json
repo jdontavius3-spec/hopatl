@@ -1,12 +1,11 @@
 {
-  "name": "wait-and-return-prototype",
+  "name": "trickhopper-demo",
   "version": "1.0.0",
-  "description": "Local pilot prototype for shared live GPS telemetry across rider and pilot portals",
-  "main": "server.mjs",
+  "description": "Closed proof-of-concept demo for shared rider and pilot GPS telemetry",
   "type": "module",
   "scripts": {
-    "start": "node server.mjs",
-    "dev": "node --watch server.mjs",
+    "start": "node trip-service.mjs",
+    "dev": "node --watch trip-service.mjs",
     "test": "node --test test/live-gps.test.mjs",
     "check": "node --test test/live-gps.test.mjs"
   },
@@ -16,7 +15,6 @@
     "prototype",
     "mobile-first"
   ],
-  "author": "Antigravity Prototype Team",
   "license": "UNLICENSED",
   "private": true
 }
