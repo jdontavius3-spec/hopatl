@@ -94,7 +94,10 @@ test('pilot can progress trip and send SMS updates independently without continu
  assert.equal(accepted.body.state.acceptedPilotPhone,'+14045550123');
  const pilotToken=accepted.body.pilotToken;
 
- // Verify pilot SMS contact and milestone confirmation
+ // Verify pilot SMS contact (both GET and POST) and milestone confirmation
+ const smsContactGet=await call('/api/trip/pilot-sms-contact',{token:pilotToken});
+ assert.equal(smsContactGet.status,200);
+ assert.equal(smsContactGet.body.riderSmsContact,'+14045550199');
  const smsContact=await call('/api/trip/pilot-sms-contact',{method:'POST',token:pilotToken});
  assert.equal(smsContact.status,200);
  assert.equal(smsContact.body.riderSmsContact,'+14045550199');
@@ -125,5 +128,20 @@ test('pilot can progress trip and send SMS updates independently without continu
  const smsComplete=await call('/api/trip/pilot-sms-sent',{method:'POST',token:pilotToken,data:{milestone:'completion'}});
  assert.equal(smsComplete.status,200);
  assert.equal(smsComplete.body.state.completionSms.status,'PILOT_CONFIRMED_SENT');
-});
 
+ const resetCompleted=await call('/api/trip/reset',{method:'POST',token:pilotToken});
+ assert.equal(resetCompleted.status,200);
+ assert.equal(resetCompleted.body.state.tripState,'IDLE');
+
+ // Verify legacy/simulated state migration clears stuck active trips and frees pilots
+ service.importPersistentState({
+  state:{tripId:'legacy-sim-trip',tripState:'ACTIVE',simulationMode:true},
+  shared:{fixCounts:{rider:2,pilot:2}},
+  access:{tripId:'legacy-sim-trip',riderToken:'r1',pilotToken:'p1'},
+  pilots:{'pilot-test':{id:'pilot-test',name:'Test Pilot',phone:'+14045550123',available:true,availableUntil:Date.now()+60_000,activeTripId:'legacy-sim-trip',lastSeenAt:new Date().toISOString()}}
+ });
+ const availAfterMigration=await call('/api/rider/availability');
+ assert.equal(availAfterMigration.status,200);
+ assert.equal(availAfterMigration.body.status,'READY');
+ assert.equal(availAfterMigration.body.ready,true);
+});
