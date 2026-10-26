@@ -10,7 +10,8 @@
     { "source": "/api/:group/:action", "destination": "/api/nested?__path=/api/:group/:action" },
     { "source": "/driver", "destination": "/driver/index.html" },
     { "source": "/dispatch", "destination": "/dispatch/index.html" },
-    { "source": "/((?!api|css|js|icons|audio|manifest.json|driver|dispatch|pilot|favicon.ico).*)", "destination": "/index.html" }
+    { "source": "/legal", "destination": "/legal/index.html" },
+    { "source": "/((?!api|css|js|icons|audio|manifest.json|driver|dispatch|legal|pilot|favicon.ico).*)", "destination": "/index.html" }
   ],
   "headers": [
     {

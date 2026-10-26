@@ -43,6 +43,7 @@ test('online pilot receives a request and accepted pilot/vehicle details reach r
  assert.equal((await call('/api/rider/availability')).body.status,'BUSY');
  assert.equal(accepted.body.state.acceptedPilotVehicle,'Blue Test Sedan');
  assert.equal(accepted.body.state.acceptedPilotPlate,'TEST123');
+ assert.match(accepted.body.boardingPin,/^\d{4}$/);
 
  const pilotToken=accepted.body.pilotToken;
  const fix=(role,token,lat,lng)=>call('/api/telemetry/location',{method:'POST',token,data:{role,lat,lng,accuracy:5,speed:0,heading:null}});
@@ -54,6 +55,7 @@ test('online pilot receives a request and accepted pilot/vehicle details reach r
  assert.equal(rider.status,200);
  assert.equal(rider.body.state.acceptedPilotName,'Test Pilot');
  assert.equal(rider.body.state.acceptedPilotVehicle,'Blue Test Sedan');
+ assert.equal(rider.body.state.boardingPin,accepted.body.boardingPin);
  assert.equal(rider.body.shared.fixCounts.rider,1);
  assert.equal(rider.body.shared.fixCounts.pilot,1);
 
@@ -61,6 +63,7 @@ test('online pilot receives a request and accepted pilot/vehicle details reach r
  const board=await call('/api/dispatch/board',{token:operator.body.operatorToken});
  assert.equal(board.status,200);
  assert.equal(board.body.request.acceptedPilotPlate,'TEST123');
+ assert.equal(board.body.request.boardingPin,accepted.body.boardingPin);
  assert.equal(board.body.pilots[0].phone,'+14045550123');
  const removed=await call('/api/dispatch/remove-pilot',{method:'POST',token:operator.body.operatorToken,data:{pilotId:login.body.pilotId}});
  assert.equal(removed.status,200);
