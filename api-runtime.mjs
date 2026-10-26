@@ -4,6 +4,7 @@ import { exportPersistentState, handleRequest, importPersistentState, setPersist
 const REST_URL = (process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL)?.replace(/\/$/, '');
 const REST_TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 const STATE_KEY = 'trickhopper:demo:state:v1';
+const PILOTS_KEY = 'trickhopper:pilots:v1';
 const LOCK_KEY = 'trickhopper:demo:state-lock:v1';
 const LOCK_TTL_MS = 90_000;
 const LOCK_WAIT_MS = 8_000;
@@ -55,10 +56,25 @@ export default async function handler(req, res) {
       if (!locked) return reply(res, 503, { ok: false, error: 'Trip service is busy. Please retry shortly.' });
     }
 
-    const stored = await command('GET', STATE_KEY);
-    if (stored) importPersistentState(JSON.parse(stored));
+    const [storedStateRaw, storedPilotsRaw] = await command('MGET', STATE_KEY, PILOTS_KEY);
+    const parsedState = storedStateRaw ? JSON.parse(storedStateRaw) : {};
+    const parsedPilots = storedPilotsRaw ? JSON.parse(storedPilotsRaw) : {};
+    const mergedSnapshot = {
+      ...parsedState,
+      pilots: { ...(parsedState.pilots || {}), ...(parsedPilots.pilots || {}) },
+      dispatchHistory: parsedPilots.dispatchHistory?.length ? parsedPilots.dispatchHistory : (parsedState.dispatchHistory || []),
+    };
+    if (storedStateRaw || storedPilotsRaw) importPersistentState(mergedSnapshot);
+
     setPersistenceCallback(async snapshot => {
-      await command('SET', STATE_KEY, JSON.stringify(snapshot), 'EX', 60 * 60 * 12);
+      await Promise.all([
+        command('SET', STATE_KEY, JSON.stringify(snapshot), 'EX', 60 * 60 * 24),
+        command('SET', PILOTS_KEY, JSON.stringify({
+          pilots: snapshot.pilots || {},
+          dispatchHistory: snapshot.dispatchHistory || [],
+          updatedAt: new Date().toISOString(),
+        })),
+      ]);
       await releaseLock();
     });
 

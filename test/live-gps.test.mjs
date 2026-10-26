@@ -196,6 +196,16 @@ test('TRICKHOPPER Hop Pass catalog, TH-... cryptographic passkey engine, and Nig
  assert.ok(pilotLogin.body.driverToken);
  assert.equal(pilotLogin.body.payout,'$BunnyPilotATL');
 
+ // Returning pilot signing in on a new device by phone number automatically restores saved database profile
+ const returningLogin=await call('/api/driver/login',{method:'POST',data:{code:mintPl.body.passkey,phone:'(404) 555-0188'}});
+ assert.equal(returningLogin.status,200);
+ assert.equal(returningLogin.body.returningPilot,true);
+ assert.equal(returningLogin.body.pilotId,pilotLogin.body.pilotId);
+ assert.equal(returningLogin.body.pilotName,'Bunny Pilot 1');
+ assert.equal(returningLogin.body.vehicle,'Black 2025 Cadillac Escalade');
+ assert.equal(returningLogin.body.plate,'HOPATL1');
+ assert.equal(returningLogin.body.payout,'$BunnyPilotATL');
+
  // Mint TH-DP Dispatch passkey and sign into Dispatch portal
  const mintDp=await call('/api/passkey/mint',{method:'POST',data:{pin:'120017',tier:'DP'}});
  assert.equal(mintDp.status,200);
