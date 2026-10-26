@@ -145,3 +145,59 @@ test('pilot can progress trip and send SMS updates independently without continu
  assert.equal(availAfterMigration.body.status,'READY');
  assert.equal(availAfterMigration.body.ready,true);
 });
+
+test('TRICKHOPPER Hop Pass catalog, TH-... cryptographic passkey engine, and Nightlife AI Concierge work end-to-end',async()=>{
+ const catalogRes=await call('/api/passkey/catalog');
+ assert.equal(catalogRes.status,200);
+ assert.equal(catalogRes.body.brand,'TRICKHOPPER · HOPATL');
+ assert.equal(catalogRes.body.catalog.length,4);
+ assert.ok(catalogRes.body.catalog.every(item=>item.statementDescriptor==='HOPATL'));
+
+ // Reject invalid PIN when minting
+ const badMint=await call('/api/passkey/mint',{method:'POST',data:{pin:'000000',tier:'30'}});
+ assert.equal(badMint.status,401);
+
+ // Mint TH-30 rider passkey and verify it
+ const mint30=await call('/api/passkey/mint',{method:'POST',data:{pin:'120017',tier:'30'}});
+ assert.equal(mint30.status,200);
+ assert.equal(mint30.body.minted,true);
+ assert.match(mint30.body.passkey,/^TH-30-[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+
+ const verify30=await call('/api/passkey/verify',{method:'POST',data:{passkey:mint30.body.passkey}});
+ assert.equal(verify30.status,200);
+ assert.equal(verify30.body.valid,true);
+ assert.equal(verify30.body.waitMinutes,30);
+
+ // Tampered passkey is rejected
+ const tampered=mint30.body.passkey.slice(0,-1)+(mint30.body.passkey.endsWith('A')?'B':'A');
+ const verifyTampered=await call('/api/passkey/verify',{method:'POST',data:{passkey:tampered}});
+ assert.equal(verifyTampered.status,401);
+
+ // Claim Stripe checkout passkey
+ const claimed=await call('/api/passkey/claim',{method:'POST',data:{sku:'hopatl-hop-60',sessionId:'cs_test_hopatl_session_123'}});
+ assert.equal(claimed.status,200);
+ assert.equal(claimed.body.claimed,true);
+ assert.equal(claimed.body.waitMinutes,60);
+ assert.match(claimed.body.passkey,/^TH-60-/);
+
+ // Mint TH-PL Pilot passkey and sign into Pilot portal using the TH-PL passkey
+ const mintPl=await call('/api/passkey/mint',{method:'POST',data:{pin:'120017',tier:'PL'}});
+ assert.equal(mintPl.status,200);
+ const pilotLogin=await call('/api/driver/login',{method:'POST',data:{code:mintPl.body.passkey,name:'Bunny Pilot 1',phone:'+14045550188',smsConsent:true,vehicle:'Black 2025 Cadillac Escalade',plate:'HOPATL1'}});
+ assert.equal(pilotLogin.status,200);
+ assert.ok(pilotLogin.body.driverToken);
+
+ // Mint TH-DP Dispatch passkey and sign into Dispatch portal
+ const mintDp=await call('/api/passkey/mint',{method:'POST',data:{pin:'120017',tier:'DP'}});
+ assert.equal(mintDp.status,200);
+ const dispatchLogin=await call('/api/dispatch/login',{method:'POST',data:{code:mintDp.body.passkey}});
+ assert.equal(dispatchLogin.status,200);
+ assert.ok(dispatchLogin.body.operatorToken);
+
+ // Query Nightlife AI Concierge
+ const concierge=await call('/api/concierge/ask',{method:'POST',data:{prompt:'Best 2-stop Friday route from Midtown to Ponce City Market and West Midtown?'}});
+ assert.equal(concierge.status,200);
+ assert.equal(concierge.body.ok,true);
+ assert.ok(concierge.body.text.length>20);
+});
+

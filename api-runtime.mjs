@@ -29,6 +29,11 @@ const reply = (res, status, data) => {
 };
 
 export default async function handler(req, res) {
+  const reqUrl = new URL(req.url || '/', `http://${req.headers?.host || 'localhost'}`);
+  const effectivePath = reqUrl.searchParams.get('__path') || reqUrl.pathname;
+  if (effectivePath.startsWith('/api/passkey/') || effectivePath.startsWith('/api/concierge/')) {
+    return handleRequest(req, res);
+  }
   if (!REST_URL || !REST_TOKEN) {
     return reply(res, 503, { ok: false, error: 'Shared trip storage is not configured. Trips are disabled.' });
   }
