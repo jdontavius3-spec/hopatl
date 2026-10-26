@@ -51,6 +51,8 @@ function renderHopPassAndConcierge(s){
     {sku:'hopatl-hop-60',name:'60-Min VIP Wait-and-Return Lock (TH-60 Passkey)',priceUsd:14.99,waitMinutes:60,paymentLink:'https://buy.stripe.com/test_9B628t9gpdgN5nS8myb7y0n'},
     {sku:'hopatl-ext-15',name:'+15 Min Curbside Wait Extension (TH-EX Passkey)',priceUsd:4.99,waitMinutes:15,paymentLink:'https://buy.stripe.com/test_00w5kFeAJb8F3fK46ib7y0p'},
     {sku:'hopatl-b2b-pack6',name:'Promoter & Airbnb VIP 6-Passkey Pack (6x TH-30 Locks)',priceUsd:49.00,waitMinutes:30,paymentLink:'https://buy.stripe.com/test_00wcN764dccJ03y0U6b7y0q'},
+    {sku:'hopatl-vip-itinerary-999',name:'AI Custom 3-Stop Nightlife Itinerary + TH-15 Curb Lock (TH-IT)',priceUsd:9.99,waitMinutes:15,paymentLink:'https://buy.stripe.com/test_aFabJ32S1dgN4jO32eb7y0y'},
+    {sku:'hopatl-promoter-kit-39',name:'Custom AI Club / Airbnb QR Flyer & Table-Tent Kit (TH-KT)',priceUsd:39.00,waitMinutes:30,paymentLink:'https://buy.stripe.com/test_5kQ7sN9gpekR03ycCOb7y0x'},
     {sku:'hopatl-allnight',name:'All-Night Dedicated Bunny Reserve (VIP)',priceUsd:149.00,waitMinutes:60,paymentLink:'https://buy.stripe.com/test_cNibJ38cl90x03y9qCb7y0o'}
   ];
   const catalog=rawCatalog.filter(pkg=>pkg.sku!=='hopatl-pilot-vip');
@@ -79,6 +81,8 @@ function renderHopPassAndConcierge(s){
           <option value="60" ${s.mintTier==='60'?'selected':''}>TH-60 · 60-Min VIP Lock ($14.99)</option>
           <option value="EX" ${s.mintTier==='EX'?'selected':''}>TH-EX · +15 Min Wait Extension ($4.99)</option>
           <option value="PK" ${s.mintTier==='PK'?'selected':''}>TH-PK · Promoter/Airbnb 6-Passkey Pack ($49)</option>
+          <option value="IT" ${s.mintTier==='IT'?'selected':''}>TH-IT · AI 3-Stop Itinerary + TH-15 Lock ($9.99)</option>
+          <option value="KT" ${s.mintTier==='KT'?'selected':''}>TH-KT · Custom AI Club/Airbnb QR Kit ($39)</option>
           <option value="AN" ${s.mintTier==='AN'?'selected':''}>TH-AN · All-Night Bunny Reserve ($149)</option>
           <option value="PV" ${s.mintTier==='PV'?'selected':''}>TH-PV · VIP Priority Pilot Badge ($29/mo)</option>
           <option value="PL" ${s.mintTier==='PL'?'selected':''}>TH-PL · Pilot Portal Access Key</option>
@@ -90,18 +94,18 @@ function renderHopPassAndConcierge(s){
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:14px">
       ${catalog.map(pkg=>`<div style="padding:12px;border-radius:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.09);display:flex;flex-direction:column;justify-content:space-between;gap:8px">
         <div>
-          <div class="eyebrow">${pkg.sku==='hopatl-allnight'?'ALL-IN VIP RESERVE':pkg.sku==='hopatl-b2b-pack6'?'B2B PROMOTER & AIRBNB PACK':pkg.sku==='hopatl-ext-15'?'IN-RIDE WAIT EXTENSION':`${pkg.waitMinutes} MIN WAIT LOCK · DIRECT PILOT FARE`}</div>
+          <div class="eyebrow">${pkg.sku==='hopatl-allnight'?'ALL-IN VIP RESERVE':pkg.sku==='hopatl-b2b-pack6'?'B2B PROMOTER & AIRBNB PACK':pkg.sku==='hopatl-promoter-kit-39'?'AWS BEDROCK NOVA CANVAS KIT':pkg.sku==='hopatl-vip-itinerary-999'?'AWS BEDROCK AI ITINERARY + LOCK':pkg.sku==='hopatl-ext-15'?'IN-RIDE WAIT EXTENSION':`${pkg.waitMinutes} MIN WAIT LOCK · DIRECT PILOT FARE`}</div>
           <strong style="display:block;margin-top:4px;font-size:14px">${esc(pkg.name.replace('TRICKHOPPER · ',''))}</strong>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:4px">
           <strong style="font-size:16px">$${Number(pkg.priceUsd).toFixed(2)}</strong>
-          <a class="btn-secondary" style="width:auto;padding:6px 12px;text-decoration:none;font-size:12px" href="${esc(pkg.paymentLink)}" target="_blank" rel="noopener noreferrer">${pkg.sku==='hopatl-b2b-pack6'?'Buy 6-Pack →':pkg.sku==='hopatl-ext-15'?'+15 Min →':'Lock Wait →'}</a>
+          <a class="btn-secondary" style="width:auto;padding:6px 12px;text-decoration:none;font-size:12px" href="${esc(pkg.paymentLink)}" target="_blank" rel="noopener noreferrer">${pkg.sku==='hopatl-b2b-pack6'?'Buy 6-Pack →':pkg.sku==='hopatl-promoter-kit-39'?'Get QR Kit →':pkg.sku==='hopatl-vip-itinerary-999'?'Get AI Route →':pkg.sku==='hopatl-ext-15'?'+15 Min →':'Lock Wait →'}</a>
         </div>
       </div>`).join('')}
     </div>
   </section>
   <section class="card" id="trickhopper-concierge-card" style="margin-top:14px">
-    <div class="eyebrow">ATLANTA NIGHTLIFE AI CONCIERGE · HOPATL</div>
+    <div class="eyebrow">ATLANTA NIGHTLIFE AI CONCIERGE · POWERED BY AMAZON BEDROCK (US-WEST-2)</div>
     <h2 class="cash-title" style="margin:4px 0">Ask the Nightlife Bunny Route Concierge</h2>
     <p class="cash-note">Plan multi-stop Atlanta hops (Midtown, Buckhead, Ponce, West Midtown, Krog Street) and find the ideal reserved curbside wait block.</p>
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
@@ -109,6 +113,10 @@ function renderHopPassAndConcierge(s){
       <button type="button" class="btn-secondary" id="ask-concierge-btn" style="width:auto;padding:0 18px" ${s.conciergeBusy?'disabled':''}>${s.conciergeBusy?'Planning…':'Ask Bunny AI →'}</button>
     </div>
     ${s.conciergeAnswer?`<div style="margin-top:12px;padding:12px;border-radius:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);font-size:13px;line-height:1.5;white-space:pre-wrap">${esc(s.conciergeAnswer)}</div>`:''}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08)">
+      <a class="btn-secondary" style="flex:1;min-width:210px;text-align:center;text-decoration:none;font-size:12px;padding:8px 12px" href="https://buy.stripe.com/test_aFabJ32S1dgN4jO32eb7y0y" target="_blank" rel="noopener noreferrer">🗺️ AI Custom 3-Stop Itinerary + TH-15 Lock ($9.99) →</a>
+      <a class="btn-secondary" style="flex:1;min-width:210px;text-align:center;text-decoration:none;font-size:12px;padding:8px 12px" href="https://buy.stripe.com/test_5kQ7sN9gpekR03ycCOb7y0x" target="_blank" rel="noopener noreferrer">🎨 Custom AI Club / Airbnb QR Flyer Kit ($39.00) →</a>
+    </div>
   </section>`;
 }
 
