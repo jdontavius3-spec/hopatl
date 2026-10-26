@@ -154,12 +154,15 @@ test('TRICKHOPPER Hop Pass catalog, TH-... cryptographic passkey engine, and Nig
  assert.equal(catalogRes.status,200);
  assert.equal(catalogRes.body.brand,'TRICKHOPPER · HOPATL');
  assert.equal(catalogRes.body.pricingModel,'MODEL_A_WAIT_LOCK_PLUS_DIRECT_PILOT');
- assert.equal(catalogRes.body.catalog.length,4);
+ assert.equal(catalogRes.body.catalog.length,7);
  assert.ok(catalogRes.body.catalog.every(item=>item.statementDescriptor==='HOPATL'));
  assert.equal(catalogRes.body.catalogBySku['hopatl-hop-15'].amountCents,599);
  assert.equal(catalogRes.body.catalogBySku['hopatl-hop-30'].amountCents,999);
  assert.equal(catalogRes.body.catalogBySku['hopatl-hop-60'].amountCents,1499);
  assert.equal(catalogRes.body.catalogBySku['hopatl-allnight'].amountCents,14900);
+ assert.equal(catalogRes.body.catalogBySku['hopatl-ext-15'].amountCents,499);
+ assert.equal(catalogRes.body.catalogBySku['hopatl-b2b-pack6'].amountCents,4900);
+ assert.equal(catalogRes.body.catalogBySku['hopatl-pilot-vip'].amountCents,2900);
 
  // Reject invalid PIN when minting
  const badMint=await call('/api/passkey/mint',{method:'POST',data:{pin:'000000',tier:'30'}});
