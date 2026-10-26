@@ -7,33 +7,33 @@ const PRODUCTS = [
   {
     sku: 'hopatl-hop-15',
     tier: '15',
-    name: 'TRICKHOPPER · 15-Min Curbside Hop Pass (Atlanta Round-Trip)',
+    name: 'TRICKHOPPER · 15-Min Curbside Wait Lock (TH-15 Passkey)',
     description:
-      'Reserved Atlanta Wait-and-Return Hop Pass: includes 15-minute curbside pilot wait block + return leg & TH-15 Rider Passkey.',
-    amountCents: 1999,
+      'Upfront 15-Minute Curbside Wait Lock & TH-15 Rider Passkey on hopatl.com. Pilot route & driving fare is paid directly to your pilot at the curb.',
+    amountCents: 599,
   },
   {
     sku: 'hopatl-hop-30',
     tier: '30',
-    name: 'TRICKHOPPER · 30-Min Nightlife Bunny Hop Pass (Atlanta Round-Trip)',
+    name: 'TRICKHOPPER · 30-Min Nightlife Bunny Lock (TH-30 Passkey)',
     description:
-      'Reserved Atlanta Wait-and-Return Hop Pass: includes 30-minute curbside pilot wait block + return leg & TH-30 Rider Passkey.',
-    amountCents: 3499,
+      'Upfront 30-Minute Curbside Wait Lock & TH-30 Rider Passkey on hopatl.com. Pilot route & driving fare is paid directly to your pilot at the curb.',
+    amountCents: 999,
   },
   {
     sku: 'hopatl-hop-60',
     tier: '60',
-    name: 'TRICKHOPPER · 60-Min VIP Wait-and-Return Block (Multi-Stop)',
+    name: 'TRICKHOPPER · 60-Min VIP Wait-and-Return Lock (TH-60 Passkey)',
     description:
-      'VIP Multi-Hop Atlanta Wait-and-Return Block: includes 60-minute reserved curbside pilot wait + return leg & TH-60 VIP Passkey.',
-    amountCents: 5999,
+      'Upfront 60-Minute VIP Curbside Wait Lock & TH-60 Passkey on hopatl.com. Pilot route & driving fare is paid directly to your pilot at the curb.',
+    amountCents: 1499,
   },
   {
     sku: 'hopatl-allnight',
     tier: 'AN',
     name: 'TRICKHOPPER · All-Night Dedicated Bunny Reserve (Atlanta VIP)',
     description:
-      'Dedicated All-Night Atlanta Chauffeur & Wait-and-Return Reserve (up to 3 stops, priority pilot pairing, Klarna/Affirm eligible) + TH-AN Passkey.',
+      'All-In Dedicated All-Night Atlanta Chauffeur & Wait-and-Return Reserve (up to 3 stops, priority pilot pairing, Klarna/Affirm eligible) + TH-AN Passkey.',
     amountCents: 14900,
   },
 ];

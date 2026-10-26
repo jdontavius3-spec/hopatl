@@ -153,8 +153,13 @@ test('TRICKHOPPER Hop Pass catalog, TH-... cryptographic passkey engine, and Nig
  const catalogRes=await call('/api/passkey/catalog');
  assert.equal(catalogRes.status,200);
  assert.equal(catalogRes.body.brand,'TRICKHOPPER · HOPATL');
+ assert.equal(catalogRes.body.pricingModel,'MODEL_A_WAIT_LOCK_PLUS_DIRECT_PILOT');
  assert.equal(catalogRes.body.catalog.length,4);
  assert.ok(catalogRes.body.catalog.every(item=>item.statementDescriptor==='HOPATL'));
+ assert.equal(catalogRes.body.catalogBySku['hopatl-hop-15'].amountCents,599);
+ assert.equal(catalogRes.body.catalogBySku['hopatl-hop-30'].amountCents,999);
+ assert.equal(catalogRes.body.catalogBySku['hopatl-hop-60'].amountCents,1499);
+ assert.equal(catalogRes.body.catalogBySku['hopatl-allnight'].amountCents,14900);
 
  // Reject invalid PIN when minting
  const badMint=await call('/api/passkey/mint',{method:'POST',data:{pin:'000000',tier:'30'}});
@@ -183,12 +188,13 @@ test('TRICKHOPPER Hop Pass catalog, TH-... cryptographic passkey engine, and Nig
  assert.equal(claimed.body.waitMinutes,60);
  assert.match(claimed.body.passkey,/^TH-60-/);
 
- // Mint TH-PL Pilot passkey and sign into Pilot portal using the TH-PL passkey
+ // Mint TH-PL Pilot passkey and sign into Pilot portal using the TH-PL passkey + Direct Payout Handle
  const mintPl=await call('/api/passkey/mint',{method:'POST',data:{pin:'120017',tier:'PL'}});
  assert.equal(mintPl.status,200);
- const pilotLogin=await call('/api/driver/login',{method:'POST',data:{code:mintPl.body.passkey,name:'Bunny Pilot 1',phone:'+14045550188',smsConsent:true,vehicle:'Black 2025 Cadillac Escalade',plate:'HOPATL1'}});
+ const pilotLogin=await call('/api/driver/login',{method:'POST',data:{code:mintPl.body.passkey,name:'Bunny Pilot 1',phone:'+14045550188',smsConsent:true,vehicle:'Black 2025 Cadillac Escalade',plate:'HOPATL1',payout:'$BunnyPilotATL'}});
  assert.equal(pilotLogin.status,200);
  assert.ok(pilotLogin.body.driverToken);
+ assert.equal(pilotLogin.body.payout,'$BunnyPilotATL');
 
  // Mint TH-DP Dispatch passkey and sign into Dispatch portal
  const mintDp=await call('/api/passkey/mint',{method:'POST',data:{pin:'120017',tier:'DP'}});
