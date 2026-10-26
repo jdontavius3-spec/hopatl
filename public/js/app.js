@@ -44,27 +44,53 @@ function renderReturnWait(s,role){
   const hops=s.routeQuote?.hops||[],current=Math.min(Number(s.stopIndex||0),Math.max(0,hops.length-1)),waits=s.stopWaits||[];return `<section class="card return-wait-card"><div class="eyebrow">NIGHTLIFE HOPS · SHARED TRIP TIMELINE</div><h2 class="cash-title">Stop & wait record</h2>${renderWaitSegment(s,{label:'Pickup wait',start:s.pickupArrivedAt,end:s.rideStartedAt,activeState:'WAITING_PICKUP',elapsedKey:'pickupWaitElapsedSeconds',billableKey:'pickupWaitBillableSeconds'})}${hops.map((hop,index)=>{const record=waits[index]||{};return `<div class="stop-timeline ${index===current?'current-stop':''}"><strong>Hop ${index+1} · ${esc(hop.destination?.label||hop.destination?.query||'Stop')}</strong>${renderWaitSegment(s,{label:`Reserved curbside wait · ${hop.waitMinutes} min`,start:record.arrivedAt,end:record.departedAt,activeState:index===current&&['WAITING_HOP','WAITING_RETURN'].includes(s.tripState)?s.tripState:'',elapsedKey:'elapsedSeconds',billableKey:'billableSeconds',elapsedValue:record.elapsedSeconds,billableValue:record.billableSeconds,includedSeconds:Number(hop.waitMinutes||0)*60})}</div>`}).join('')}${role!=='pilot'&&['WAITING_HOP','WAITING_RETURN'].includes(s.tripState)?`<a class="btn-secondary" style="display:block;margin-top:10px;text-align:center;text-decoration:none" href="https://buy.stripe.com/test_00w5kFeAJb8F3fK46ib7y0p" target="_blank" rel="noopener noreferrer">⏱️ Party Longer · +15 Min Curbside Wait Extension ($4.99) →</a>`:''}${role==='pilot'&&s.tripState==='EN_ROUTE'?'<button class="btn-secondary" id="arrive-pickup">Arrived at pickup · start pickup wait</button>':''}${role==='pilot'&&s.tripState==='WAITING_PICKUP'?'<button class="btn-primary" id="start-outbound">Rider boarded · start route →</button>':''}${role==='pilot'&&s.tripState==='ACTIVE'?`<p class="page-subtitle">Navigate to Hop ${current+1}: ${esc(hops[current]?.destination?.label||hops[current]?.destination?.query||'selected stop')}</p><button class="btn-secondary" id="arrive-current-stop">Arrived at Hop ${current+1} · start shared wait</button>`:''}${role==='pilot'&&s.tripState==='WAITING_HOP'?`<button class="btn-primary" id="start-next-hop">Depart Hop ${current+1} · continue to next stop →</button>`:''}${role==='pilot'&&s.tripState==='WAITING_RETURN'?'<button class="btn-primary" id="start-return-leg">Depart final stop · start return to pickup →</button>':''}</section>`;
 }
 
+function renderPackagesSubsectionBanner(s){
+  const liveReady=Boolean(s.riderAvailability?.ready);
+  return `<section class="card" id="trickhopper-packages-banner" style="margin-top:14px;padding:16px 18px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <div>
+        <div class="eyebrow">HOPATL PACKAGES, PASSKEYS &amp; AI CONCIERGE</div>
+        <h2 class="cash-title" style="margin:4px 0;font-size:18px">Wait-Lock Passkeys, VIP Packs &amp; Nightlife AI</h2>
+      </div>
+      <span class="live-pill">${s.verifiedPasskey?`✓ ACTIVE · ${esc(s.verifiedPasskey.passkey)}`:liveReady?'LIVE LOCKS + 24/7 PACKS OPEN':'24/7 PACKS OPEN · LIVE LOCKS GATED'}</span>
+    </div>
+    <p class="cash-note" style="margin-top:6px">Keep the ride planner clean—visit the <strong>Packages &amp; Passkeys</strong> subsection to verify a <code>TH-...</code> Passkey, ask the Nightlife Bunny AI Concierge, grab 24/7 Promoter 6-Packs (<code>$49</code>) &amp; All-Night Reserves (<code>$149</code>), or lock live curbside wait tiers (<code>$5.99–$14.99</code> when a pilot is online).</p>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+      <a href="/packages" class="btn-secondary" data-rider-nav="packages" style="flex:1;min-width:220px;text-align:center;text-decoration:none">View Packages, Passkeys &amp; AI Concierge →</a>
+    </div>
+  </section>`;
+}
+
 function renderHopPassAndConcierge(s){
   const rawCatalog=s.passkeyCatalog||[
-    {sku:'hopatl-hop-15',name:'15-Min Curbside Wait Lock (TH-15 Passkey)',priceUsd:5.99,waitMinutes:15,paymentLink:'https://buy.stripe.com/test_14A00l1NX6SpdUo6eqb7y0l'},
-    {sku:'hopatl-hop-30',name:'30-Min Nightlife Bunny Lock (TH-30 Passkey)',priceUsd:9.99,waitMinutes:30,paymentLink:'https://buy.stripe.com/test_6oU14p1NX6Sp6rWcCOb7y0m'},
-    {sku:'hopatl-hop-60',name:'60-Min VIP Wait-and-Return Lock (TH-60 Passkey)',priceUsd:14.99,waitMinutes:60,paymentLink:'https://buy.stripe.com/test_9B628t9gpdgN5nS8myb7y0n'},
-    {sku:'hopatl-ext-15',name:'+15 Min Curbside Wait Extension (TH-EX Passkey)',priceUsd:4.99,waitMinutes:15,paymentLink:'https://buy.stripe.com/test_00w5kFeAJb8F3fK46ib7y0p'},
-    {sku:'hopatl-b2b-pack6',name:'Promoter & Airbnb VIP 6-Passkey Pack (6x TH-30 Locks)',priceUsd:49.00,waitMinutes:30,paymentLink:'https://buy.stripe.com/test_00wcN764dccJ03y0U6b7y0q'},
-    {sku:'hopatl-vip-itinerary-999',name:'AI Custom 3-Stop Nightlife Itinerary + TH-15 Curb Lock (TH-IT)',priceUsd:9.99,waitMinutes:15,paymentLink:'https://buy.stripe.com/test_aFabJ32S1dgN4jO32eb7y0y'},
-    {sku:'hopatl-promoter-kit-39',name:'Custom AI Club / Airbnb QR Flyer & Table-Tent Kit (TH-KT)',priceUsd:39.00,waitMinutes:30,paymentLink:'https://buy.stripe.com/test_5kQ7sN9gpekR03ycCOb7y0x'},
-    {sku:'hopatl-allnight',name:'All-Night Dedicated Bunny Reserve (VIP)',priceUsd:149.00,waitMinutes:60,paymentLink:'https://buy.stripe.com/test_cNibJ38cl90x03y9qCb7y0o'}
+    {sku:'hopatl-hop-15',name:'15-Min Curbside Wait Lock (TH-15 Passkey)',priceUsd:5.99,waitMinutes:15,requiresOnlinePilot:true,paymentLink:'https://buy.stripe.com/test_14A00l1NX6SpdUo6eqb7y0l'},
+    {sku:'hopatl-hop-30',name:'30-Min Nightlife Bunny Lock (TH-30 Passkey)',priceUsd:9.99,waitMinutes:30,requiresOnlinePilot:true,paymentLink:'https://buy.stripe.com/test_6oU14p1NX6Sp6rWcCOb7y0m'},
+    {sku:'hopatl-hop-60',name:'60-Min VIP Wait-and-Return Lock (TH-60 Passkey)',priceUsd:14.99,waitMinutes:60,requiresOnlinePilot:true,paymentLink:'https://buy.stripe.com/test_9B628t9gpdgN5nS8myb7y0n'},
+    {sku:'hopatl-ext-15',name:'+15 Min Curbside Wait Extension (TH-EX Passkey)',priceUsd:4.99,waitMinutes:15,requiresOnlinePilot:true,paymentLink:'https://buy.stripe.com/test_00w5kFeAJb8F3fK46ib7y0p'},
+    {sku:'hopatl-b2b-pack6',name:'Promoter & Airbnb VIP 6-Passkey Pack (6x TH-30 Locks)',priceUsd:49.00,waitMinutes:30,requiresOnlinePilot:false,paymentLink:'https://buy.stripe.com/test_00wcN764dccJ03y0U6b7y0q'},
+    {sku:'hopatl-vip-itinerary-999',name:'AI Custom 3-Stop Nightlife Itinerary + TH-15 Curb Lock (TH-IT)',priceUsd:9.99,waitMinutes:15,requiresOnlinePilot:false,paymentLink:'https://buy.stripe.com/test_aFabJ32S1dgN4jO32eb7y0y'},
+    {sku:'hopatl-promoter-kit-39',name:'Custom AI Club / Airbnb QR Flyer & Table-Tent Kit (TH-KT)',priceUsd:39.00,waitMinutes:30,requiresOnlinePilot:false,paymentLink:'https://buy.stripe.com/test_5kQ7sN9gpekR03ycCOb7y0x'},
+    {sku:'hopatl-allnight',name:'All-Night Dedicated Bunny Reserve (VIP)',priceUsd:149.00,waitMinutes:60,requiresOnlinePilot:false,paymentLink:'https://buy.stripe.com/test_cNibJ38cl90x03y9qCb7y0o'}
   ];
   const catalog=rawCatalog.filter(pkg=>pkg.sku!=='hopatl-pilot-vip');
-  return `<section class="card" id="trickhopper-passkey-card" style="margin-top:14px">
+  const liveLockSkus=new Set(['hopatl-hop-15','hopatl-hop-30','hopatl-hop-60','hopatl-ext-15']);
+  const liveWaitLocks=catalog.filter(pkg=>pkg.requiresOnlinePilot===true||liveLockSkus.has(pkg.sku));
+  const alwaysOpenPackages=catalog.filter(pkg=>!(pkg.requiresOnlinePilot===true||liveLockSkus.has(pkg.sku)));
+  const livePilotReady=Boolean(s.riderAvailability?.ready);
+
+  return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+    <a href="/" class="btn-secondary" data-rider-nav="ride" style="width:auto;padding:8px 14px;text-decoration:none;font-size:13px">← Back to Ride Planner</a>
+    <span class="live-pill" style="${livePilotReady?'':'background:rgba(245,158,11,0.16);color:#fbbf24'}">${livePilotReady?'🟢 PILOT ONLINE · LIVE WAIT LOCKS & 24/7 PACKS OPEN':'🟡 NO PILOT AVAILABLE · LIVE WAIT LOCKS GATED · 24/7 PACKS OPEN'}</span>
+  </div>
+  <section class="card" id="trickhopper-passkey-card">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
       <div>
-        <div class="eyebrow">HOPATL CURBSIDE WAIT LOCK · TH-PASSKEY</div>
-        <h2 class="cash-title" style="margin:4px 0">Curbside Wait-Lock Passkeys</h2>
+        <div class="eyebrow">HOPATL PASSKEY VERIFICATION · TH-PASSKEY</div>
+        <h2 class="cash-title" style="margin:4px 0">Verify or Issue a TH-Passkey</h2>
       </div>
-      <span class="live-pill">${s.verifiedPasskey?`ACTIVE · ${esc(s.verifiedPasskey.tierLabel||'VERIFIED')}`:'LOW UPFRONT WAIT LOCK'}</span>
+      <span class="live-pill">${s.verifiedPasskey?`ACTIVE · ${esc(s.verifiedPasskey.tierLabel||'VERIFIED')}`:'READY TO VERIFY'}</span>
     </div>
-    <p class="cash-note" style="margin-top:6px">Lock your reserved curbside wait tier upfront (` + '`$5.99` / `$9.99` / `$14.99`' + `, statement descriptor: <strong>HOPATL</strong>), extend your wait +15 mins (<code>$4.99</code>), or grab a 6-Passkey Promoter/Airbnb VIP Pack (<code>$49.00</code>). Your pilot’s route & driving fare is paid 100% directly to the pilot at the curb.</p>
+    <p class="cash-note" style="margin-top:6px">Already hold a <code>TH-...</code> Passkey from a Promoter 6-Pack, AI Itinerary, or Wait Lock? Verify it below to lock your reserved curbside wait tier automatically on the Ride Planner.</p>
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
       <input class="destination-input" id="passkey-input" style="flex:1;min-width:210px;margin:0;font-family:monospace;text-transform:uppercase" maxlength="40" placeholder="TH-30-XXXX-XXXX" value="${esc(s.passkeyInput||'')}">
       <button type="button" class="btn-secondary" id="verify-passkey-btn" style="width:auto;padding:0 18px">Verify Passkey</button>
@@ -91,19 +117,56 @@ function renderHopPassAndConcierge(s){
         <button type="button" class="btn-primary" id="mint-passkey-btn" style="width:auto;padding:0 16px">Mint TH-Key</button>
       </div>
     </div>`:''}
+  </section>
+
+  <section class="card" id="trickhopper-live-locks-card" style="margin-top:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <div>
+        <div class="eyebrow">IMMEDIATE RIDE WAIT LOCKS · GATED BY PILOT AVAILABILITY</div>
+        <h2 class="cash-title" style="margin:4px 0">Live-Ride Curbside Wait Locks</h2>
+      </div>
+      <span class="live-pill" style="${livePilotReady?'':'background:rgba(248,113,113,0.16);color:#fca5a5'}">${livePilotReady?'PILOT ONLINE · CHECKOUT OPEN':'GATED · NO PILOT AVAILABLE'}</span>
+    </div>
+    <p class="cash-note" style="margin-top:6px">${livePilotReady?'A pilot is online right now! Lock your immediate curbside wait block upfront (`$5.99` / `$9.99` / `$14.99`) or extend +15 mins (`$4.99`). Your pilot’s route & driving fare is paid 100% directly at the curb.':'Live single-ride Wait Locks require an online pilot before checkout so you are never charged for an immediate curb wait when no pilot is available. Looking to buy in advance? Check out the 24/7 Pre-Paid & AI Packages below.'}</p>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:14px">
-      ${catalog.map(pkg=>`<div style="padding:12px;border-radius:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.09);display:flex;flex-direction:column;justify-content:space-between;gap:8px">
+      ${liveWaitLocks.map(pkg=>`<div style="padding:12px;border-radius:12px;background:rgba(255,255,255,0.03);border:1px solid ${livePilotReady?'rgba(255,255,255,0.09)':'rgba(248,113,113,0.22)'};display:flex;flex-direction:column;justify-content:space-between;gap:8px">
         <div>
-          <div class="eyebrow">${pkg.sku==='hopatl-allnight'?'ALL-IN VIP RESERVE':pkg.sku==='hopatl-b2b-pack6'?'B2B PROMOTER & AIRBNB PACK':pkg.sku==='hopatl-promoter-kit-39'?'AWS BEDROCK NOVA CANVAS KIT':pkg.sku==='hopatl-vip-itinerary-999'?'AWS BEDROCK AI ITINERARY + LOCK':pkg.sku==='hopatl-ext-15'?'IN-RIDE WAIT EXTENSION':`${pkg.waitMinutes} MIN WAIT LOCK · DIRECT PILOT FARE`}</div>
+          <div class="eyebrow">${pkg.sku==='hopatl-ext-15'?'IN-RIDE WAIT EXTENSION':`${pkg.waitMinutes} MIN WAIT LOCK · DIRECT PILOT FARE`}</div>
           <strong style="display:block;margin-top:4px;font-size:14px">${esc(pkg.name.replace('TRICKHOPPER · ',''))}</strong>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:4px">
           <strong style="font-size:16px">$${Number(pkg.priceUsd).toFixed(2)}</strong>
-          <a class="btn-secondary" style="width:auto;padding:6px 12px;text-decoration:none;font-size:12px" href="${esc(pkg.paymentLink)}" target="_blank" rel="noopener noreferrer">${pkg.sku==='hopatl-b2b-pack6'?'Buy 6-Pack →':pkg.sku==='hopatl-promoter-kit-39'?'Get QR Kit →':pkg.sku==='hopatl-vip-itinerary-999'?'Get AI Route →':pkg.sku==='hopatl-ext-15'?'+15 Min →':'Lock Wait →'}</a>
+          ${livePilotReady
+            ? `<a class="btn-secondary" style="width:auto;padding:6px 12px;text-decoration:none;font-size:12px" href="${esc(pkg.paymentLink)}" target="_blank" rel="noopener noreferrer">${pkg.sku==='hopatl-ext-15'?'+15 Min →':'Lock Wait →'}</a>`
+            : `<button type="button" class="btn-secondary" disabled style="width:auto;padding:6px 12px;font-size:12px;opacity:0.55;cursor:not-allowed" title="Requires an online pilot before checkout">🔒 No Pilot Online</button>`}
         </div>
       </div>`).join('')}
     </div>
   </section>
+
+  <section class="card" id="trickhopper-247-packages-card" style="margin-top:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <div>
+        <div class="eyebrow">OPEN 24/7 · PRE-PAID PACKS, ADVANCE RESERVES &amp; AI DROPS</div>
+        <h2 class="cash-title" style="margin:4px 0">24/7 VIP Packages &amp; AI Nightlife Kits</h2>
+      </div>
+      <span class="live-pill">OPEN 24/7 · ALWAYS AVAILABLE</span>
+    </div>
+    <p class="cash-note" style="margin-top:6px">Pre-paid Promoter/Airbnb 6-Packs, Advance All-Night Dedicated Bunny Reserves (Klarna/Affirm eligible), and instant AWS Bedrock AI deliverables are unlocked 24/7—even when no pilot is currently online.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:14px">
+      ${alwaysOpenPackages.map(pkg=>`<div style="padding:12px;border-radius:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.09);display:flex;flex-direction:column;justify-content:space-between;gap:8px">
+        <div>
+          <div class="eyebrow">${pkg.sku==='hopatl-allnight'?'ALL-IN VIP RESERVE · 24/7':pkg.sku==='hopatl-b2b-pack6'?'B2B PROMOTER & AIRBNB PACK · 24/7':pkg.sku==='hopatl-promoter-kit-39'?'AWS BEDROCK NOVA CANVAS KIT · 24/7':'AWS BEDROCK AI ITINERARY + LOCK · 24/7'}</div>
+          <strong style="display:block;margin-top:4px;font-size:14px">${esc(pkg.name.replace('TRICKHOPPER · ',''))}</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:4px">
+          <strong style="font-size:16px">$${Number(pkg.priceUsd).toFixed(2)}</strong>
+          <a class="btn-secondary" style="width:auto;padding:6px 12px;text-decoration:none;font-size:12px" href="${esc(pkg.paymentLink)}" target="_blank" rel="noopener noreferrer">${pkg.sku==='hopatl-b2b-pack6'?'Buy 6-Pack →':pkg.sku==='hopatl-promoter-kit-39'?'Get QR Kit →':pkg.sku==='hopatl-vip-itinerary-999'?'Get AI Route →':'Reserve VIP →'}</a>
+        </div>
+      </div>`).join('')}
+    </div>
+  </section>
+
   <section class="card" id="trickhopper-concierge-card" style="margin-top:14px">
     <div class="eyebrow">ATLANTA NIGHTLIFE AI CONCIERGE · POWERED BY AMAZON BEDROCK (US-WEST-2)</div>
     <h2 class="cash-title" style="margin:4px 0">Ask the Nightlife Bunny Route Concierge</h2>
@@ -133,6 +196,7 @@ function render() {
 
   if(role==='pilot'&&!store.driverToken){root.innerHTML=`<div class="app-shell pilot-shell">${renderHeader(s)}<main class="content-body"><section class="card"><div class="eyebrow">PRIVATE DRIVER PORTAL</div><h1 class="cash-title">Pilot sign in</h1><p class="page-subtitle">Enter your details so dispatch can identify you and riders can pay your driving fare 100% directly at the curb. Returning pilots are saved in the dispatch database.</p><form id="driver-login-form"><label class="eyebrow" for="pilot-display-name">PILOT NAME / CALLSIGN</label><input class="destination-input" id="pilot-display-name" autocomplete="nickname" required maxlength="60" aria-label="Pilot name or callsign" value="${esc(s.driverName||'')}"><label class="eyebrow" for="pilot-phone">MOBILE NUMBER</label><input class="destination-input" id="pilot-phone" type="tel" inputmode="tel" autocomplete="tel" required maxlength="24" aria-label="Pilot mobile number" placeholder="(404) 555-0123" value="${esc(s.driverPhone||'')}"><label class="cash-note" for="pilot-sms-consent"><input id="pilot-sms-consent" type="checkbox" ${s.driverPhone?'checked':''} required> I agree that dispatch may contact me by SMS about ride requests. Texts are initiated by a person from a messaging app; carrier fees may apply. Reply STOP to opt out.</label><p class="cash-note">Dispatch operators can view this number in your pilot profile. If Messages opens, review the text and tap Send; the browser cannot send it automatically.</p><label class="eyebrow" for="pilot-vehicle">VEHICLE · MAKE, MODEL, COLOR</label><input class="destination-input" id="pilot-vehicle" autocomplete="off" maxlength="100" aria-label="Vehicle make model and color" placeholder="e.g. blue 2023 Honda Accord" value="${esc(s.driverVehicle||'')}"><label class="eyebrow" for="pilot-plate">LICENSE PLATE (OPTIONAL)</label><input class="destination-input" id="pilot-plate" autocomplete="off" maxlength="12" aria-label="Vehicle license plate" placeholder="Plate shown only after acceptance" value="${esc(s.driverPlate||'')}"><label class="eyebrow" for="pilot-payout">DIRECT PAYOUT HANDLE ($CASHTAG, ZELLE, VENMO, OR CASH)</label><input class="destination-input" id="pilot-payout" autocomplete="off" maxlength="80" aria-label="Pilot direct payout handle" placeholder="e.g. $RockoATL or Zelle (404) 555-0199" value="${esc(s.driverPayout||'')}"><label class="eyebrow" for="driver-access-code">ACCESS CODE OR TH-PL PILOT PASSKEY</label><input class="destination-input" id="driver-access-code" type="password" autocomplete="current-password" required maxlength="160" aria-label="Driver access code or TH-PL passkey" placeholder="Access code or TH-PL-XXXX-XXXX-XXXX"><button class="btn-primary booking-action" type="submit" ${s.driverLoginBusy?'disabled':''}>${s.driverLoginBusy?'Signing in…':'Sign in →'}</button></form>${s.driverLoginError?`<p class="cash-dispute" role="alert">${esc(s.driverLoginError)}</p>`:''}</section></main></div>`;document.getElementById('driver-login-form')?.addEventListener('submit',event=>{event.preventDefault();store.loginDriver(document.getElementById('driver-access-code')?.value||'',document.getElementById('pilot-display-name')?.value||'',document.getElementById('pilot-phone')?.value||'',document.getElementById('pilot-vehicle')?.value||'',document.getElementById('pilot-plate')?.value||'',document.getElementById('pilot-payout')?.value||'',document.getElementById('pilot-sms-consent')?.checked===true)});return}
   const pilot = role === 'pilot', own = s.liveLocations[role], ownActive = s.gpsActiveByRole[role];
+  const inPackagesView = !pilot && s.tripState === TRIP_STATES.IDLE && s.riderSection === 'packages';
   const stageCopy = ({IDLE:'Ready when you are',REQUESTED:'Ride request sent',EN_ROUTE:'Driver connected',WAITING_PICKUP:'Pickup wait',ACTIVE:'Ride in progress',WAITING_HOP:'Stop wait',WAITING_RETURN:'Final stop wait',RETURNING:'Return trip',COMPLETED:'Ride complete',CANCELLED:'Request cancelled',EXPIRED:'Request expired'})[s.tripState];
   let controls = '';
   let smsControls = '';
@@ -152,15 +216,17 @@ function render() {
   if (s.tripState === TRIP_STATES.WAITING_HOP && pilot) controls = `<p class="page-subtitle">The current stop timer is shared. Depart when the rider is ready to continue to the next hop.</p>`;
   if (s.tripState === TRIP_STATES.WAITING_RETURN && pilot) controls = `<p class="page-subtitle">The return-stop wait is visible to both people. Start the return leg when the rider is ready.</p>`;
   if (s.tripState === TRIP_STATES.RETURNING && pilot) controls = `<button class="btn-primary" id="complete-ride" ${!ownActive || !own || (s.fixCounts.pilot||0)<2 ? 'disabled' : ''}>Complete return trip with GPS record →</button>`;
-  if (s.tripState === TRIP_STATES.COMPLETED) controls = `${pilot&&s.smsRecipientPhone?`<section class="card sms-action-card"><div class="eyebrow">RIDER TEXT · PILOT DEVICE</div><h2 class="cash-title">Confirm the trip is complete</h2><p class="page-subtitle">Open the prefilled completion text in Messages and tap Send. TRICKHOPPER records your confirmation, not carrier delivery.</p><a class="btn-primary" style="display:block;text-align:center;text-decoration:none" href="${esc(pilotSmsLink(s.smsRecipientPhone,s))}">Open Messages · trip complete →</a>${completionTextPending?'<button class="btn-secondary" id="pilot-text-sent" data-sms-milestone="completion" style="margin-top:10px">I sent the completion text</button>':s.completionSms?.status==='PILOT_CONFIRMED_SENT'?'<p class="live-pill" style="margin-top:10px">PILOT MARKED COMPLETION TEXT SENT · DELIVERY UNVERIFIED</p>':''}</section>`:''}<button class="btn-secondary" id="reset-trip">Clear trip and start over</button>`;
+  if (s.tripState === TRIP_STATES.COMPLETED) controls = `${pilot&&s.smsRecipientPhone?`<section class="card sms-action-card"><div class="eyebrow">RIDER TEXT · PILOT DEVICE</div><h2 class="cash-title">Confirm the trip is complete</h2><p class="page-subtitle">Open the prefilled completion text in Messages and tap Send. TRICKHOPPER records your confirmation, not carrier delivery.</p><a class="btn-primary" style="display:block;text-align:center;text-decoration:none" href="${esc(pilotSmsLink(s.smsRecipientPhone,s))}">Open Messages · trip complete →</a>${completionTextPending?'<button class="btn-secondary" id="pilot-text-sent" data-sms-milestone="completion" style="margin-top:10px">I sent the completion text</button>':s.completionSms?.status==='PILOT_CONFIRMED_SENT'?'<p class="live-pill" role="status">PILOT MARKED COMPLETION TEXT SENT · DELIVERY UNVERIFIED</div>':''}</section>`:''}<button class="btn-secondary" id="reset-trip">Clear trip and start over</button>`;
   controls += smsControls;
   if (activeTripStates.includes(s.tripState)) controls += `<button class="btn-secondary" id="cancel-request" style="margin-top:10px">${pilot?'End ride':'Cancel ride'}</button>`;
   const otherLocation = s.liveLocations[other];
   root.innerHTML = `<div class="app-shell ${pilot?'pilot-shell':'rider-shell'}">${renderHeader(s)}<div class="demo-banner" role="note"><strong>ATLANTA NIGHTLIFE VIP · PRE-ARRANGED WAIT &amp; RETURN</strong><span>Live GPS, 4-Digit Boarding PIN, and shared curbside wait timers.</span></div><main class="content-body">
-    ${!pilot&&s.tripState===TRIP_STATES.IDLE?`<section class="card rider-hero"><div class="eyebrow">ATLANTA NIGHTLIFE · ROUNDTRIP RIDES</div><h1>Hop All Night.<br><span>Never Lose Your Ride.</span></h1><p>Our pilots can wait curbside while you pre-game, visit a lounge, grab a bite, or change fits. Plan stops, reserved waits, and a return to your pickup in one request.</p></section>`:''}
+    ${inPackagesView
+      ? `${renderHopPassAndConcierge(s)}${renderRateCard()}${renderLegalFooter()}`
+      : `${!pilot&&s.tripState===TRIP_STATES.IDLE?`<section class="card rider-hero"><div class="eyebrow">ATLANTA NIGHTLIFE · ROUNDTRIP RIDES</div><h1>Hop All Night.<br><span>Never Lose Your Ride.</span></h1><p>Our pilots can wait curbside while you pre-game, visit a lounge, grab a bite, or change fits. Plan stops, reserved waits, and a return to your pickup in one request.</p></section>`:''}
     <section class="card trip-stage-card" style="padding:20px">${!pilot&&s.tripState===TRIP_STATES.IDLE?`<div class="rider-availability ${s.riderAvailability?.ready?'ready':s.riderAvailability?.status==='UNKNOWN'?'unknown':'unavailable'}" role="status" aria-live="polite"><span class="availability-dot"></span><strong>${s.riderAvailability?.ready?'READY':s.riderAvailability?.status==='UNKNOWN'?'CHECKING AVAILABILITY':'NO PILOT AVAILABLE'}</strong><span>${esc(s.riderAvailability?.message||'Checking whether a pilot is available…')}</span></div>`:''}<div class="eyebrow">TRIP STATUS · LIVE STATUS</div><h1 class="page-title" style="margin:8px 0">${stageCopy}</h1><p class="page-subtitle">${s.notificationMessage ? esc(s.notificationMessage) : pilot ? (s.tripState===TRIP_STATES.IDLE?'Your pilot portal is ready. New requests appear here.':s.tripState==='REQUESTED'?'Review and accept the request to share live location.':'New ride requests appear here. Accepting connects the trip.') : s.tripState===TRIP_STATES.IDLE?'Enter your destination to see the fare before you request a ride.':'Ride updates and location sharing appear here as the trip progresses.'}</p>${s.boardingPin&&activeTripStates.includes(s.tripState)?`<div class="live-pill" style="margin:8px 0;display:inline-block;font-size:13px;letter-spacing:0.08em">🔐 BUNNY BOARDING PIN · <strong>${esc(s.boardingPin)}</strong> (${pilot?'Confirm with rider at curb':'Verify with pilot before boarding'})</div>`:''}${!pilot&&s.acceptedPilotName?`<div class="arrival-alert" role="status"><strong>Pilot accepted · ${esc(s.acceptedPilotName)}</strong><span>${s.acceptedPilotVehicle?esc(s.acceptedPilotVehicle):'Vehicle details have not been provided.'}${s.acceptedPilotPlate?` · Plate ${esc(s.acceptedPilotPlate)}`:''}${s.acceptedPilotPayout?` · Direct Curb Payout: ${esc(s.acceptedPilotPayout)}`:''}</span>${s.acceptedPilotPayout&&pilotPayoutHref(s.acceptedPilotPayout)?`<a class="btn-primary" style="display:block;margin-top:8px;text-align:center;text-decoration:none" href="${esc(pilotPayoutHref(s.acceptedPilotPayout))}" target="_blank" rel="noopener noreferrer">💸 Pay Pilot Direct (${esc(s.acceptedPilotPayout)}) →</a>`:''}${s.acceptedPilotPhone?`<a class="btn-secondary" style="display:block;margin-top:8px;text-align:center;text-decoration:none" href="${esc(smsHref(s.acceptedPilotPhone,`TRICKHOPPER ride ${String(s.tripId||'').slice(0,8).toUpperCase()}${s.boardingPin?` (PIN ${s.boardingPin})`:''}: `))}">Open Messages · text pilot →</a>`:''}</div>`:''}${!pilot&&s.pickupArrivedAt?`<div class="arrival-alert" role="status"><strong>Your pilot has arrived at pickup</strong><span>${new Date(s.pickupArrivedAt).toLocaleTimeString()} · ${s.pickupArrivalSms?.status==='ACCEPTED_BY_PROVIDER'?'A text was queued; carrier delivery is unverified.':s.pickupArrivalSms?.status==='PILOT_CONFIRMED_SENT'?'The pilot marked the text sent; delivery is unverified.':'Arrival is confirmed in the app. The pilot can send a text from Messages.'}</span></div>`:''}${s.smsConfirmation?.status==='ACCEPTED_BY_PROVIDER'?'<div class="live-pill">RIDER SMS QUEUED · DELIVERY STATUS MAY UPDATE</div>':s.smsConfirmation?.status==='PILOT_SMS_READY'?'<div class="live-pill">PILOT CAN SEND CONFIRMATION FROM THEIR PHONE</div>':s.smsConfirmation?.status==='PILOT_CONFIRMED_SENT'?'<div class="live-pill">PILOT MARKED TEXT SENT · CARRIER DELIVERY UNVERIFIED</div>':''}${s.tripState===TRIP_STATES.COMPLETED&&s.completionSms?.status==='PILOT_SMS_READY'?'<div class="live-pill" role="status">TRIP COMPLETE · PILOT CAN SEND A TEXT UPDATE</div>':s.completionSms?.status==='PILOT_CONFIRMED_SENT'?'<div class="live-pill" role="status">PILOT MARKED COMPLETION TEXT SENT · DELIVERY UNVERIFIED</div>':''}</section>
     <div class="primary-flow">${controls}</div>
-    ${!pilot&&s.tripState===TRIP_STATES.IDLE?renderHopPassAndConcierge(s):''}
+    ${!pilot&&s.tripState===TRIP_STATES.IDLE?renderPackagesSubsectionBanner(s):''}
     ${!pilot&&s.tripState===TRIP_STATES.IDLE?renderWhyTrickhopper():''}
     ${(s.tripState!==TRIP_STATES.IDLE||pilot)?`<details class="details-card gps-details"><summary>${ownActive?'Live location sharing':'Location details'}</summary><section class="card" style="margin-top:12px"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><div><strong>Your live GPS</strong><div style="font-size:12px;color:var(--text-secondary);margin-top:4px">${ownActive && own ? 'Sharing live device location' : `Location is requested when you ${pilot?'accept the request':'request pickup'}.`}</div></div>${ownActive?'<button id="gps-toggle" class="btn-secondary">Stop sharing</button>':''}</div>${s.gpsErrors[role]?`<p role="alert" style="color:#fca5a5">${esc(s.gpsErrors[role])}</p>`:''}${own?`<div class="gps-line">${Number(own.lat).toFixed(6)}, ${Number(own.lng).toFixed(6)} · ±${Math.round(own.accuracy)} m · ${new Date(own.timestamp).toLocaleTimeString()}</div>`:''}</section></details>`:''}
     ${!pilot&&s.tripState===TRIP_STATES.REQUESTED?`<section class="card request-status-card" role="status" aria-live="polite"><div class="eyebrow">REQUEST SENT · NOT BOOKED YET</div><strong>Waiting for a pilot to accept</strong><div class="request-countdown"><span>Request expires in</span><b id="request-countdown">${formatRequestCountdown(s.requestExpiresAt)}</b></div><p class="page-subtitle">Your ride is only confirmed after a pilot accepts. If no one accepts before the timer ends, this request closes and you can try again.</p><button class="btn-secondary" id="cancel-request">Cancel request</button></section>`:''}${!['IDLE','CANCELLED','EXPIRED'].includes(s.tripState)?renderLiveMap(s):''}
@@ -168,9 +234,10 @@ function render() {
     ${!['IDLE','CANCELLED','EXPIRED'].includes(s.tripState)?`<details class="details-card"><summary>Trip details and GPS record</summary><section class="card" style="margin-top:12px"><div class="eyebrow">OTHER DEVICE LOCATION</div><strong style="display:block;margin-top:6px">${otherLocation ? (s.gpsActiveByRole[other]?'Live location received':'Last GPS fix received') : 'Waiting for GPS fix'}</strong>${otherLocation?`<div class="gps-line">${Number(otherLocation.lat).toFixed(6)}, ${Number(otherLocation.lng).toFixed(6)} · ±${Math.round(otherLocation.accuracy)} m · ${new Date(otherLocation.timestamp).toLocaleTimeString()}</div>`:`<p class="page-subtitle">The other person must open their portal and allow location access.</p>`}<div class="eyebrow" style="margin-top:16px">TRIP TELEMETRY</div><div class="telemetry-stats"><div><b>${s.fixCounts.rider||0}</b><small>Customer GPS fixes</small></div><div><b>${s.fixCounts.pilot||0}</b><small>Driver GPS fixes</small></div><div><b>${Number(s.tripDistanceMiles||0).toFixed(2)} mi</b><small>Recorded driver track</small></div></div><p class="page-subtitle" style="margin-bottom:0">Live browser GPS and trip events are recorded by the connected service. Route estimates use OpenStreetMap services; they are not traffic-aware.</p>${s.pickupArrivedAt?`<div class="gps-line">Pickup arrival recorded ${new Date(s.pickupArrivedAt).toLocaleString()}</div>`:''}${s.rideStartedAt?`<div class="gps-line">Ride start recorded ${new Date(s.rideStartedAt).toLocaleString()}</div>`:''}${s.destinationArrivedAt?`<div class="gps-line">Drop-off arrival recorded ${new Date(s.destinationArrivedAt).toLocaleString()}</div>`:''}${s.returnStartedAt?`<div class="gps-line">Return leg started ${new Date(s.returnStartedAt).toLocaleString()}</div>`:''}${s.rideCompletedAt?`<div class="gps-line">Completed ${new Date(s.rideCompletedAt).toLocaleString()}</div>`:''}</section></details>`:''}
     ${!['IDLE','REQUESTED','CANCELLED','EXPIRED'].includes(s.tripState)?renderReturnWait(s,role):''}
     ${renderRateCard()}
-    ${renderLegalFooter()}
+    ${renderLegalFooter()}`}
     </main></div>`;
   const nextLiveMap=root.querySelector('#live-map');if(retainedLiveMap&&nextLiveMap)nextLiveMap.replaceWith(retainedLiveMap);updateLiveMap(s);
+  document.querySelectorAll('[data-rider-nav]').forEach(el=>el.addEventListener('click',event=>{event.preventDefault();store.setRiderSection(el.dataset.riderNav)}));
   document.getElementById('gps-toggle')?.addEventListener('click',()=> ownActive ? telemetry.stopLiveGPS(role) : telemetry.startLiveGPS(role));
   document.getElementById('passkey-input')?.addEventListener('input',event=>{store.state.passkeyInput=event.target.value});
   document.getElementById('verify-passkey-btn')?.addEventListener('click',()=>store.verifyPasskey(document.getElementById('passkey-input')?.value||''));

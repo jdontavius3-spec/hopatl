@@ -157,14 +157,23 @@ test('TRICKHOPPER Hop Pass catalog, TH-... cryptographic passkey engine, and Nig
  assert.equal(catalogRes.body.catalog.length,9);
  assert.ok(catalogRes.body.catalog.every(item=>item.statementDescriptor==='HOPATL'));
  assert.equal(catalogRes.body.catalogBySku['hopatl-hop-15'].amountCents,599);
+ assert.equal(catalogRes.body.catalogBySku['hopatl-hop-15'].requiresOnlinePilot,true);
  assert.equal(catalogRes.body.catalogBySku['hopatl-hop-30'].amountCents,999);
+ assert.equal(catalogRes.body.catalogBySku['hopatl-hop-30'].requiresOnlinePilot,true);
  assert.equal(catalogRes.body.catalogBySku['hopatl-hop-60'].amountCents,1499);
+ assert.equal(catalogRes.body.catalogBySku['hopatl-hop-60'].requiresOnlinePilot,true);
  assert.equal(catalogRes.body.catalogBySku['hopatl-allnight'].amountCents,14900);
+ assert.equal(catalogRes.body.catalogBySku['hopatl-allnight'].requiresOnlinePilot,false);
  assert.equal(catalogRes.body.catalogBySku['hopatl-ext-15'].amountCents,499);
+ assert.equal(catalogRes.body.catalogBySku['hopatl-ext-15'].requiresOnlinePilot,true);
  assert.equal(catalogRes.body.catalogBySku['hopatl-b2b-pack6'].amountCents,4900);
+ assert.equal(catalogRes.body.catalogBySku['hopatl-b2b-pack6'].requiresOnlinePilot,false);
  assert.equal(catalogRes.body.catalogBySku['hopatl-vip-itinerary-999'].amountCents,999);
+ assert.equal(catalogRes.body.catalogBySku['hopatl-vip-itinerary-999'].requiresOnlinePilot,false);
  assert.equal(catalogRes.body.catalogBySku['hopatl-promoter-kit-39'].amountCents,3900);
+ assert.equal(catalogRes.body.catalogBySku['hopatl-promoter-kit-39'].requiresOnlinePilot,false);
  assert.equal(catalogRes.body.catalogBySku['hopatl-pilot-vip'].amountCents,2900);
+ assert.equal(catalogRes.body.catalogBySku['hopatl-pilot-vip'].requiresOnlinePilot,false);
 
  // Reject invalid PIN when minting
  const badMint=await call('/api/passkey/mint',{method:'POST',data:{pin:'000000',tier:'30'}});
