@@ -8,15 +8,15 @@ process.env.DRIVER_ACCESS_CODE=driverCode;
 process.env.DISPATCH_ACCESS_CODE=dispatchCode;
 const service=await import('../trip-service.mjs');
 
-async function call(path,{method='GET',data={},token}={}){
- const raw=method==='POST'?JSON.stringify(data):'';
- const req=Readable.from(raw?[raw]:[]);
+async function call(path,{method='GET',data={},token,headers={},raw}={}){
+ const payload=raw!==undefined?raw:(method==='POST'?JSON.stringify(data):'');
+ const req=Readable.from(payload?[payload]:[]);
  req.method=method;
  req.url=path;
- req.headers={host:'localhost',origin:'http://localhost',...(token?{authorization:`Bearer ${token}`}:{})};
+ req.headers={host:'localhost',origin:'http://localhost',...(token?{authorization:`Bearer ${token}`}:{}),...headers};
  const res={headers:{},statusCode:200,headersSent:false,setHeader(key,value){this.headers[key]=value},writeHead(status,headers={}){this.statusCode=status;Object.assign(this.headers,headers);this.headersSent=true},end(body=''){this.body=String(body);this.headersSent=true}};
  await service.handleRequest(req,res);
- return{status:res.statusCode,body:res.body?JSON.parse(res.body):null};
+ return{status:res.statusCode,body:res.body&&res.body.trim().startsWith('{')?JSON.parse(res.body):res.body};
 }
 
 test('online pilot receives a request and accepted pilot/vehicle details reach rider and dispatch',async()=>{
@@ -232,5 +232,25 @@ test('TRICKHOPPER Hop Pass catalog, TH-... cryptographic passkey engine, and Nig
  assert.equal(concierge.status,200);
  assert.equal(concierge.body.ok,true);
  assert.ok(concierge.body.text.length>20);
+
+ // 4-hour Pilot Shift Availability TTL + Two-Way Twilio SMS ONLINE/OFFLINE/STATUS commands
+ const shiftOnline=await call('/api/driver/availability',{method:'POST',token:pilotLogin.body.driverToken,data:{available:true}});
+ assert.equal(shiftOnline.status,200);
+ assert.equal(shiftOnline.body.available,true);
+ assert.ok(shiftOnline.body.expiresAt > Date.now() + 3.5 * 60 * 60_000,'Pilot shift availability should last ~4 hours');
+
+ const smsOffline=await call('/api/twilio/inbound',{method:'POST',headers:{'accept':'application/json','content-type':'application/x-www-form-urlencoded'},raw:'From=%2B14045550188&Body=OFFLINE'});
+ assert.equal(smsOffline.status,200);
+ assert.equal(smsOffline.body.available,false);
+
+ const smsOnline=await call('/api/twilio/inbound',{method:'POST',headers:{'accept':'application/json','content-type':'application/x-www-form-urlencoded'},raw:'From=%2B14045550188&Body=ONLINE'});
+ assert.equal(smsOnline.status,200);
+ assert.equal(smsOnline.body.available,true);
+
+ const smsStatus=await call('/api/twilio/inbound',{method:'POST',headers:{'accept':'application/json','content-type':'application/x-www-form-urlencoded'},raw:'From=%2B14045550188&Body=STATUS'});
+ assert.equal(smsStatus.status,200);
+ assert.equal(smsStatus.body.available,true);
 });
+
+
 
