@@ -2,6 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <script>
+    (function () {
+      var p = window.location.pathname || '';
+      var s = window.location.search || '';
+      if (p.indexOf('/portal') === 0 || s.indexOf('sku=cairn-') !== -1) {
+        window.location.replace('https://www.cohortcairn.com/' + s);
+      }
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>TRICKHOPPER</title>
   <meta name="description" content="Plan your TRICKHOPPER ride in Atlanta.">

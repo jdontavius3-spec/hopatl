@@ -6,12 +6,24 @@
       "maxDuration": 60
     }
   },
+  "redirects": [
+    {
+      "source": "/portal",
+      "destination": "https://www.cohortcairn.com/portal",
+      "permanent": false
+    },
+    {
+      "source": "/portal/:path*",
+      "destination": "https://www.cohortcairn.com/portal/:path*",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     { "source": "/api/:group/:action", "destination": "/api/nested?__path=/api/:group/:action" },
     { "source": "/driver", "destination": "/driver/index.html" },
     { "source": "/dispatch", "destination": "/dispatch/index.html" },
     { "source": "/legal", "destination": "/legal/index.html" },
-    { "source": "/((?!api|css|js|icons|audio|manifest.json|driver|dispatch|legal|pilot|favicon.ico).*)", "destination": "/index.html" }
+    { "source": "/((?!api|css|js|icons|audio|manifest.json|driver|dispatch|legal|pilot|portal|favicon.ico).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
